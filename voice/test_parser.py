@@ -269,7 +269,7 @@ CASES = [
     # --- research (explicit keyword only)
     ("research desecrate", ["research:desecrate"]),
     ("look up the porcupine", ["research:the porcupine"]),
-    ("wiki forged frostbearer", ["research:forged frostbearer"]),
+    ("wiki forged frostbearer", ["wiki_link"]),   # v5.3: "wiki X" gets the link (playtest, 2026-11-13)
     ("look up how does spell echo work on minions", ["research:how does spell echo work on minions"]),
     ("can you research raise spectre", ["research:raise spectre"]),
     ("repeat that", ["local:repeat"]),

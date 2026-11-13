@@ -354,6 +354,9 @@ if str(HERE) not in sys.path:
 import intents_v4 as iv4  # noqa: E402  (v4: custom types, Power Chase, Fate boss, follow-ups, news)
 iv4.NORM = normalise
 iv4.FUZZ = fuzz
+import intents_v5 as iv5  # noqa: E402  (v5: pace targets, text size, wiki links, chase by content type)
+import intents_v53 as iv53  # noqa: E402  (v5.3: confirm, lab trials, corrections, timer reset, wiki phrasings, fate questions, areas, boss kills)
+iv53.FUZZ = fuzz
 
 _ALIAS_INDEX = []  # (alias_tokens, alias_str, canonical, kind)
 for canon, kind, aliases in CATALOG:
@@ -480,6 +483,16 @@ def parse(transcript: str, ctx: dict | None = None):
         return [{"type": "local", "what": "unmute"}]
     if re.fullmatch(iv4.YES_RE, s):
         return [{"type": "yes"}]                          # the Hub turns it into the offered look-up (or OCR confirm)
+    v53 = None if (ctx or {}).get("_no53") else iv53.parse_v53(raw, s)   # v5.3: phrasings from the Act 1-2 test
+    if v53 and v53[0]["type"] == "boss_down":
+        rest = parse(transcript, {**(ctx or {}), "_no53": True})
+        if rest and not (rest[0].get("type") == "log" and rest[0].get("kind") == "note"):
+            return rest                  # "Merveil dead" stays the Act 1 milestone it always was
+    if v53:
+        return v53
+    v5 = iv5.parse_v5(raw, s)      # v5: "get wiki link for X" must never log X as a drop
+    if v5:
+        return [v5]
     tc = iv4.parse_type_cmd(raw)
     if tc:
         return [tc]
@@ -1159,6 +1172,9 @@ def describe(actions) -> str:
         elif t == "fate_attempt": bits.append("fate attempt")
         elif t == "set_act": bits.append(f"act {a['act']}")
         elif t == "research": bits.append("research")
+        elif t == "pace_cfg": bits.append("pace target " + ({"league": "league start", "alt": "alt", "speed": "speedrun", "custom": "custom"}.get(a.get("preset"), "") if a.get("preset") else f"{a.get('total', 0) / 60:g} hours"))
+        elif t == "tree_nav": bits.append("tree " + (a.get("name") or ("next" if a.get("dir", 0) > 0 else "previous" if a.get("dir") else "current")))
+        elif t == "text_size": bits.append("text " + ("bigger" if a.get("step", 0) > 0 else "smaller" if a.get("step") else f"{a.get('pct')} percent"))
         elif t == "ocr": bits.append("screenshot " + a.get("what", ""))
     return ", ".join(bits) or "nothing"
 
@@ -1259,6 +1275,17 @@ class Feedback:
 # --------------------------------------------------------------------------------------------
 # Command hub: parse -> push to tracker page -> wait for result -> feedback
 # --------------------------------------------------------------------------------------------
+# v5.2: Power Chase entries that are a kind of item, not one page ("Abyss jewel", "+1/+1 wand", "Dread boss fight",
+# "+1 Spectre chest"). Same rule as the tracker page (config.js CHASE_GENERIC).
+CHASE_GENERIC = re.compile(r"(^|[\s(])[+\d]|\b(jewels?|boss|bosses|fight|chest|wand|links?|linked|sockets?|craft|crafted|crafting|helmet|amulet|"
+                           r"ring|rings|gloves|boots|belt|body armou?r|weapon|shield|maps?|cards?|currency|any|some|good|rare|uniques?|gear|"
+                           r"items?|upgrades?|base|bases|spectres?|minions?|setup)\b", re.I)
+
+
+def chase_generic(name: str) -> bool:
+    return bool(CHASE_GENERIC.search(str(name or "")))
+
+
 class Hub:
     def __init__(self, cfg, feedback: Feedback, researcher=None):
         self.cfg, self.fb = cfg, feedback
@@ -1270,6 +1297,8 @@ class Hub:
         self.status = "idle"
         self.page_state = {}         # compact tracker state the page sends with each result (used by research)
         self.research = researcher or Researcher(cfg, name_matcher=match_item)
+        self.wiki_lock = threading.Lock()      # v5.2: wiki_link keeps per-query state on the Researcher
+        self.chase_wiki_cache = {}
         self.job = None              # running research: {"id", "query", "cancel": Event, "t0"}
         self.last_answer = ""
         self.ocr_busy = False
@@ -1359,6 +1388,66 @@ class Hub:
         self._remember({"transcript": "research: " + job["query"], "actions": [], "source": "research", "say": res.get("spoken", ""),
                         "research_ms": res["ms"], "research_source": res.get("source"), "note": res.get("note", "")})
 
+    # --- v5: "get wiki link for X" (async like research; poewiki search with the partial-match guard, poedb fallback)
+    def start_wiki_link(self, query, rec):
+        if not query:
+            say = "Say the name, like get wiki link for Darkness Enthroned."
+            self.fb.beep("unknown"); self.fb.say(say); rec.update(say=say, level="unknown"); return
+        self.broadcast({"type": "wiki_pending", "query": query})      # the page shows "Finding…" at once
+        self.fb.beep("ok")
+        rec.update(say=f"(finding the wiki link for {query[:60]})", level="ok")
+        threading.Thread(target=self._wiki_worker, args=(query, time.perf_counter()), daemon=True).start()
+
+    def chase_wiki(self, name):
+        """v5.2 Power Chase: quiet wiki lookup for an item name. Generic entries ('Abyss jewel', '+1 Spectre chest') are never
+        looked up; otherwise the same strict check as 'get wiki link' (poewiki, then poedb). Offline -> error, nothing cached."""
+        name = re.sub(r"\s+", " ", str(name or "")).strip()[:120]
+        if not name:
+            return {"found": False, "generic": True, "title": "", "url": "", "source": ""}
+        if chase_generic(name):
+            return {"found": False, "generic": True, "title": "", "url": "", "source": ""}
+        key = name.lower()
+        if key in self.chase_wiki_cache:
+            return {**self.chase_wiki_cache[key], "cached": True}
+        t0 = time.perf_counter()
+        try:
+            with self.wiki_lock:
+                res = self.research.wiki_link(name)
+        except Exception as e:  # noqa: BLE001
+            res = {"found": False, "error": str(e)[:160]}
+        out = {"found": bool(res.get("found")), "generic": False, "title": res.get("title", ""), "url": res.get("url", ""),
+               "source": res.get("source", ""), "ms": round((time.perf_counter() - t0) * 1000)}
+        if res.get("error") and not out["found"]:
+            out["error"] = str(res["error"])[:160]
+        else:
+            self.chase_wiki_cache[key] = out
+        LOG.write("wiki", f"chase lookup {name!r}: " + (out["url"] or out.get("error") or "no confident match"))
+        return out
+
+    def _wiki_worker(self, query, t0):
+        try:
+            with self.wiki_lock:
+                res = self.research.wiki_link(query)
+                if not res.get("found") and re.match(r"(?i)the\s+\S", query):   # v5.3: "the death card" -> the Death card page
+                    res2 = self.research.wiki_link(re.sub(r"(?i)^the\s+", "", query))
+                    if res2.get("found"):
+                        res = res2
+        except Exception as e:  # noqa: BLE001
+            res = {"found": False, "query": query, "error": str(e)[:160]}
+        # v5.1: never touches the clipboard; the link goes to the Wiki links panel as a hyperlink to click when ready
+        res["ms"] = round((time.perf_counter() - t0) * 1000)
+        if res.get("found"):
+            say = f"Wiki link for {res['title']} added." + (" From poedb." if res.get("source") == "poedb" else "")
+        elif res.get("error"):
+            say = "I couldn't reach the wiki."
+        else:
+            say = f"I couldn't find a wiki page for {query[:60]}." + (f" Closest: {', '.join(res['closest'][:3])}." if res.get("closest") else "")
+        self.push([{"type": "wiki_link_result", **{k: res.get(k, "") for k in ("query", "title", "url", "source", "ms")},
+                    "found": bool(res.get("found")), "closest": res.get("closest") or []}], f"wiki link: {query}", source="wiki")
+        self.fb.beep("ok" if res.get("found") else "unknown"); self.fb.say(say)
+        self._remember({"transcript": "wiki link: " + query, "actions": [], "source": "wiki", "say": say, "research_ms": res["ms"],
+                        "note": res.get("url", "") or res.get("error", "")})
+
     def cancel_research(self):
         j, self.job = self.job, None
         if j:
@@ -1432,9 +1521,17 @@ class Hub:
             self.fb.beep("unknown")          # v4: empty speech just beeps
             rec["say"] = "(beep: nothing heard)"
             self._remember(rec); return rec
+        if actions[0]["type"] not in ("yes", "timer_reset"):
+            self.pending_confirm = None
+        if actions[0]["type"] == "timer_reset" and not actions[0].get("confirmed"):
+            self.pending_confirm = {"ts": time.time(), "action": {"type": "timer_reset", "confirmed": True}}   # v5.3: "say yes to reset"
         if actions[0]["type"] == "yes":
             off, self.offer = self.offer, None
-            if off and time.time() - off["ts"] < 20:
+            pc, self.pending_confirm = getattr(self, "pending_confirm", None), None
+            if pc and time.time() - pc["ts"] < 30:
+                actions = [pc["action"]]
+                rec["actions"] = actions
+            elif off and time.time() - off["ts"] < 20:
                 actions = [{"type": "research", "query": off["query"]}]
                 rec["actions"] = actions
             elif time.time() - self.last_ocr_ts < 120:
@@ -1459,6 +1556,9 @@ class Hub:
             self.fb.beep("ok"); rec["say"] = w; self._remember(rec); return rec
         if actions[0]["type"] == "research":
             self.start_research(actions[0]["query"], rec)
+            self._remember(rec); return rec
+        if actions[0]["type"] == "wiki_link":
+            self.start_wiki_link(actions[0].get("query", ""), rec)
             self._remember(rec); return rec
         if actions[0].get("type") == "undo" and actions[0].get("soft") and self.job:
             q = self.cancel_research()
@@ -1638,6 +1738,8 @@ def make_handler(hub: Hub, cfg):
                     th.join(3); self._json(rec)
                 else:
                     self._json({"ok": True, "actions": parse(text)})
+            elif p == "/api/wiki_lookup":   # v5.2: Power Chase item -> wiki link (async from the page's point of view)
+                self._json(hub.chase_wiki(body.get("name", "")))
             elif p == "/api/parse":
                 self._json({"actions": parse(str(body.get("text", "")))})
             elif p == "/api/custom_types":   # v4: the page sends the current character's drop / event types
@@ -2050,10 +2152,16 @@ def main(argv=None):
             print("fell back after:", "; ".join(out["fallback"]))
         if out.get("missing"):
             print("no number read for:", ", ".join(out["missing"]), "(auto mode would add rapidocr)")
-        print("fields:", json.dumps(out["fields"]))
+        print("fields:", json.dumps(out["fields"]) + (f"  (level from the {out['level_from']})" if out.get("level_from") else ""))
         if expect is not None:
             bad = {k: (v, out["fields"].get(k)) for k, v in expect.items() if out["fields"].get(k) != v}
             print("PASS" if not bad else "FAIL " + json.dumps(bad))
+            if a.ocr_selftest:      # v5.1: the level badge on a synthetic Character-panel header (2 digits, then 1 digit)
+                for lv in (97, 4):
+                    himg, hexp = ocrmod.synthetic_header_image(lv, with_defences=(lv == 97))
+                    hout = ocrmod.read_defences(himg, eng)
+                    hbad = {k: (v, hout["fields"].get(k)) for k, v in hexp.items() if hout["fields"].get(k) != v}
+                    print(f"level badge {lv}: " + ("PASS" if not hbad else "FAIL " + json.dumps(hbad)) + f" ({hout.get('engine')}, {hout.get('level_from', '-')})")
         else:
             print("text:\n" + out.get("text", ""))
         return

@@ -8,6 +8,7 @@ function renderClock() {
   $('hdrClock').textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 function renderPace() {
+  renderPaceCfg();
   const camp = C().campaign;
   $('paceStart').classList.toggle('hidden', !!camp.start);
   $('paceLive').classList.toggle('hidden', !camp.start);
@@ -21,17 +22,17 @@ function renderPace() {
   $('curLabel').textContent = p.next ? `Now: ${p.next.label}` : 'Campaign complete';
   if (p.next) {
     const st = nextStop(p.k);
-    $('nextGate').innerHTML = `<b>Gate before moving on:</b> ${esc(p.next.gate)}${p.next.risk ? `<br><span class="warn">⚠ ${esc(p.next.risk)}</span>` : ''}<br><span class="dim">Target ${fmtClock(wallAt(p.next[S.pace]))} · pure split ${p.next.split} min</span>`;
+    $('nextGate').innerHTML = `<b>Gate before moving on:</b> ${esc(p.next.gate)}${p.next.risk ? `<br><span class="warn">⚠ ${esc(p.next.risk)}</span>` : ''}<br><span class="dim">Target ${fmtClock(wallAt(paceAt(p.next)))} · pure split ${p.next.split} min</span>`;
     $('nextStop').innerHTML = st ? `<b>${esc(st.stop.title)}</b> <span class="dim">(after ${esc(st.ms.label)}, ≤ ${STOP_BUDGET[S.pace]} min)</span><ul style="margin:4px 0 0;padding-left:18px">${st.stop.todo.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : '<span class="dim">No more fixed stops.</span>';
     $('nextStop').classList.remove('hidden');
   } else { $('nextGate').innerHTML = 'Campaign done. Use the Defense panel before white maps.'; $('nextStop').classList.add('hidden'); }
-  $('msTable').innerHTML = '<tr><th>#</th><th>Checkpoint</th><th class="n">6h</th><th class="n">7h</th><th class="n">8h</th><th class="n">Actual</th><th class="n">Δ ' + S.pace.slice(1) + 'h</th></tr>' +
+  $('msTable').innerHTML = '<tr><th>#</th><th>Checkpoint</th>' + ['t6', 't7', 't8'].map((k) => `<th class="n">${esc(PACE_NAMES[k])}</th>`).join('') + '<th class="n">Actual</th><th class="n">Δ ' + esc(PACE_NAMES[S.pace].split(' ')[0]) + '</th></tr>' +
     MILESTONES.map((m, i) => {
       const d = camp.done[m.id];
       const act = d ? activeMs(d) / MIN : null;
       return `<tr class="${d ? 'done' : i === p.k ? 'cur' : ''}"><td>${m.id}</td><td>${esc(m.label)}${m.stop ? ` · <b>Stop ${m.stop}</b>` : ''}</td>` +
-        ['t6', 't7', 't8'].map((k) => `<td class="n">${fmtClock(d ? camp.start + m[k] * MIN + pausedMs(d) : wallAt(m[k]))}</td>`).join('') +
-        `<td class="n">${d ? fmtClock(d) : ''}</td><td class="n">${d ? fmtDelta(act - m[S.pace]) : ''}</td></tr>`;
+        ['t6', 't7', 't8'].map((k) => `<td class="n">${fmtClock(d ? camp.start + paceAt(m, k) * MIN + pausedMs(d) : wallAt(paceAt(m, k)))}</td>`).join('') +
+        `<td class="n">${d ? fmtClock(d) : ''}</td><td class="n">${d ? fmtDelta(act - paceAt(m)) : ''}</td></tr>`;
     }).join('');
   tickPace(p);
 }
@@ -46,7 +47,7 @@ function tickPace(p = paceInfo()) {
   if (pz) { const from = pauses().at(-1).from; $('pauseBanner').innerHTML = `⏸ PAUSED since ${fmtClock(from)} · ${fmtDur(now() - from)} not counted <span class="dim">(say “resume” or press Resume)</span>`; }
   const totalP = pausedMs();
   $('pauseTotal').textContent = totalP ? `paused ${fmtDur(totalP)} total, excluded` : '';
-  $('kpis').innerHTML = ['t6', 't7', 't8'].map((k) => `<div class="kpi${k === S.pace ? ' sel' : ''}"><b>${PACE_NAMES[k]}</b><span>${fmtDelta(p.deltas[k])}</span><div class="dim">Kitava by ${fmtClock(wallAt(MILESTONES[KITAVA_IDX][k]))}</div></div>`).join('');
+  $('kpis').innerHTML = ['t6', 't7', 't8'].map((k) => `<div class="kpi${k === S.pace ? ' sel' : ''}"><b>${PACE_NAMES[k]}</b><span>${fmtDelta(p.deltas[k])}</span><div class="dim">Kitava by ${fmtClock(wallAt(paceAt(MILESTONES[KITAVA_IDX], k)))}</div></div>`).join('');
   $('elapsed').textContent = fmtDur(p.elapsed * MIN);
   $('projKitava').textContent = C().campaign.done.M13 ? `Kitava down at ${fmtClock(C().campaign.done.M13)}` : p.projKitava ? `Projected Kitava ${fmtClock(p.projKitava)}` : '';
   if (!p.seg) { $('segTimer').textContent = '—'; $('segTarget').textContent = ''; return; }
@@ -80,9 +81,9 @@ function renderDefense() {
   const c = C(), d = c.def;
   const setv = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v ?? ''; };
   setv('dLevel', c.level); setv('dChaos', d.chaos); setv('dPool', d.pool); setv('dAblock', d.ablock); setv('dBlock', d.block);
-  const pt = poolTarget(), pl = d.pool;
+  const pt = poolTarget(), pl = effPool(d), mom = statOn('mom') && d.mom && pl !== d.pool;
   $('dPool').classList.toggle('pool-ok', pl != null && pl > pt.v); $('dPool').classList.toggle('pool-amber', pl != null && pl <= pt.v && pl >= pt.v * 0.75); $('dPool').classList.toggle('pool-bad', pl != null && pl < pt.v * 0.75);
-  $('poolTarget').innerHTML = `<span class="${pl == null ? 'dim' : pl > pt.v ? 'ok' : pl >= pt.v * 0.75 ? 'warn' : 'bad'}">target &gt; ${pt.v}</span> <span class="dim">(${esc(pt.why)})</span>`;
+  $('poolTarget').innerHTML = `<span class="${pl == null ? 'dim' : pl > pt.v ? 'ok' : pl >= pt.v * 0.75 ? 'warn' : 'bad'}">target &gt; ${pt.v}</span> <span class="dim">(${esc(pt.why)})</span>${mom ? ` <span class="ok" title="${esc(momNote(d))}">MoM effective ${pl}</span>` : ''}`;
   setv('dFire', d.fire); setv('dCold', d.cold); setv('dLight', d.lightning); setv('dLife', d.life); setv('dEs', d.es);
   for (const [id, k] of [['dFire', 'fire'], ['dCold', 'cold'], ['dLight', 'lightning']]) $(id).classList.toggle('lowres', d[k] != null && d[k] < 75);
   const pen = kitavaPen();
@@ -98,8 +99,9 @@ function renderDefense() {
   $('defUpdated').textContent = d.updated ? 'updated ' + fmtDay(d.updated) : 'not entered yet';
   const cl = clearedIdx();
   const bar = barMode();
-  $('clearedFor').innerHTML = cl < 0 ? '<span class="bad">Not cleared for maps yet</span>' : `<span class="ok">Cleared for ${esc(GATES[cl].band)}</span> <span class="dim">· Fate cap ${GATES[Math.min(cl, 2)].fateCap} · ${bar} bar</span>`;
-  $('gateList').innerHTML = GATES.map((g) => { const r = gateCheck(g); return `<div class="g${r.pass ? ' pass' : ''}"><span><b>${esc(g.name)}</b> <span class="dim">${esc(g.band)}</span></span><span class="why">${r.pass ? '✔ met' : esc(r.fails.join(' · '))}</span></div>`; }).join('');
+  $('clearedFor').innerHTML = cl < 0 ? '<span class="bad">Not cleared for maps yet</span>' : `<span class="ok">Cleared for ${esc(tiers()[cl].band)}</span> <span class="dim">· Fate cap ${tiers()[cl].fateCap} · ${bar} bar</span>`;
+  $('gateList').innerHTML = tiers().map((g) => { const r = gateCheck(g); return `<div class="g${r.pass ? ' pass' : ''}"><span><b>${esc(g.name)}</b> <span class="dim">${esc(g.band)}</span></span><span class="why">${r.pass ? '✔ met' : esc(r.fails.join(' · '))}</span></div>`; }).join('');
+  renderDefStats();
 }
 function renderNext() {
   for (const b of $('budgetSel').children) b.classList.toggle('on', +b.dataset.b === S.budget);
@@ -112,7 +114,8 @@ function renderChar() {
   if (document.activeElement !== $('cName')) $('cName').value = c.name;
   $('cStatus').innerHTML = c.alive ? '<span class="ok">alive</span>' : '<span class="bad">dead</span>';
   const doc = trigDoc();
-  $('trigInfo').textContent = `Triggers: ${doc.triggers.length} (${S.triggers ? 'imported' : 'embedded'}, updated ${doc.updated || '?'})`;
+  $('trigInfo').textContent = `Triggers: ${doc.triggers.length} (${S.triggers ? 'imported in an older version' : 'built in'}, updated ${doc.updated || '?'})`;
+  $('btnResetTrig').classList.toggle('hidden', !S.triggers);
   $('histTable').innerHTML = S.history.length ? '<tr><th>Name</th><th>Build</th><th class="n">Lvl</th><th>Status</th><th>Started</th></tr>' + S.history.map((h) => `<tr><td>${esc(h.name || 'unnamed')}</td><td>${esc(h.build)}</td><td class="n">${h.level}</td><td>${h.alive ? 'retired' : 'died'}</td><td>${fmtDay(h.created)}</td></tr>`).join('') : '<tr><td class="dim">None.</td></tr>';
 }
 function renderSuggest() {
@@ -121,5 +124,5 @@ function renderSuggest() {
   $('logSuggest').innerHTML = [...new Set([...types().map((t) => t.name), ...items, ...EVENTS.map((e) => e.label)])].map((v) => `<option value="${esc(v)}">`).join('');
 }
 function renderAll() {
-  renderHeader(); renderClock(); renderPace(); renderNext(); renderLog(); renderDefense(); renderLinks(); renderBosses(); renderChar(); renderVoice(); renderTypes(); renderChase();
+  renderHeader(); renderClock(); renderPace(); renderNext(); renderLog(); renderDefense(); renderLinks(); renderBosses(); renderChar(); renderVoice(); renderTypes(); renderChase(); renderWiki();
 }

@@ -30,7 +30,7 @@ The same title rules apply to **skill sets** (the Skills tab's set dropdown) and
 | Anything else | Not mapped. Listed under "Not mapped by title" so you can assign it by hand | `Respec Frostbearers` |
 
 Watch out for:
-- **"a" followed by a number reads as an act.** "Get a 6 link" maps to Act 6. Write "6L" or "six link" instead.
+- A number only counts as an act right after "Act" or "A" ("Act 6", "A6", "Act 4-10"). "Get a 6 link", "5L chest" and "level 6" never become acts.
 - **"Act 10 maps" is Early maps**, because "maps" wins over the act number.
 - Act numbers outside 1–10 are ignored ("Act 11"), and a range that goes past 10 ("Act 3-12") falls back to its first act.
 
@@ -60,7 +60,7 @@ Stages are filled in order (Act 1 → Act 10 → Early → Mid → Late):
 - A stage with a **skill set but no tree** uses the previous stage's tree, and the other way round.
 - Copied stages are marked "(inherited)" in the tracker and in the import summary.
 - If Act 1 has nothing, there's nothing to copy, so it stays empty until a later stage has something.
-- Skill sets and trees that matched no stage are listed as "Not mapped by title". Assign them in **Edit mapping + categories**.
+- Skill sets and trees that matched no stage are listed as "Not mapped by title". Assign them in **Edit stage mapping**.
 
 For example, with trees for Act 1, Act 2 and Act 5 only, Acts 3 and 4 show the Act 2 tree and Acts 6–10 show the Act 5 tree. A Mid maps stage with no set of its own shows Early maps.
 
@@ -94,7 +94,7 @@ A note that says the group replaces your main skill ("replace SRS after Merveil"
 
 **No label, no header.** The gems decide: a movement, aura or curse gem first makes it that category; a damage skill is a main attack candidate; only minion gems is minions. If a skill set ends up with no main attack, its biggest damage group becomes main and the other damage groups become "other".
 
-You can change any card's category in **Edit mapping + categories**.
+You can change any card's category in **Edit stage mapping**.
 
 ## Rule 6: notes and link counts in labels
 Socket group labels can carry two extras:
@@ -155,6 +155,5 @@ And in `Act 3-10`, the `==== Support Spectres ====` header puts the spectre grou
 - [ ] Map skill sets titled with `Early`, `Mid` or `Late` (or `Min-Max`, `Endgame`), each with a `{n}` tag that matches its tree.
 - [ ] `==== Section ====` headers (gem-less groups) to group your links, and labels like `Mobility` or `MAIN DMG` where it matters.
 - [ ] Notes in brackets at the end of labels.
-- [ ] No "a 6 link"-style wording in titles.
 
-After importing, check the summary under the import box, then fix anything left in "Not mapped by title" with **Edit mapping + categories**. **Export build config** saves your fixed mapping as `.json`, and **Export profile** saves it together with your drop and event types and Power Chase list.
+After importing, check the summary under the import box, then fix anything left in "Not mapped by title" with **Edit stage mapping**. **Download backup** saves your build and fixed mapping together with the rest of your tracker data.

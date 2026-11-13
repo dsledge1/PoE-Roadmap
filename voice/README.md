@@ -24,7 +24,7 @@ with "research …" (poewiki.net, plus OpenAI if you set a key).
 
 ## Move your existing log over (once)
 The served tracker lives at a different address than the `file://` copy, so it starts empty.
-In the old file:// tracker click **Export**, then in the http://127.0.0.1:8765/ tracker click **Import log** and pick that file.
+In the old file:// tracker click **Download backup**, then in the http://127.0.0.1:8765/ tracker open **Character → Advanced → Restore backup** and pick that file.
 From then on, always use the http://127.0.0.1:8765/ address (the plain file still works without voice).
 
 ## Things you can say
@@ -41,6 +41,9 @@ From then on, always use the http://127.0.0.1:8765/ address (the plain file stil
 | **"Fate boss Merveil"**, "What's the Fate boss effect for Merveil?", "pull up the Fate boss from Merveil", "what does Brutus give", "show me Malachai fate" | v4: opens, scrolls to and highlights the boss in the Fate panel and reads a short summary (fuzzy names) |
 | **"Dropped a 4 link"**, "found a 5 link", "got a 6 socket", "4 link with the right colours", "Fate card dropped", "add drop type mirror shard", "add event type boss down", "rename drop type X to Y", "delete drop type X" | v4: your drop/event types (edit them in Drops & events). Questions and "if I find…" never log |
 | **"Chase done Darkness Enthroned"**, "add chase item Shavronne's Wrappings from Delve", "what's left on my chase" | v4: the Power Chase checklist |
+| **"What am I watching for in Abyss"**, "chase for Delve", "I'm going to farm Legion, what am I watching for" | v5: filters Power Chase to that content type (also items that list it under "also from") and reads the open items |
+| **"Set pace alt"**, "set pace league start", "speedrun pace", **"pace target 4 hours"**, "pace target 4:30" | v5: the Campaign pace target (League start ≈7 h, Alt ≈4 h, Speedrun ≈2.5 h to Kitava, or your own time). Ahead/behind and Next up follow it. "Undo" puts the old one back |
+| **"Bigger text"**, "smaller text", "text size 125", "reset text size" | v5: whole-page text size, 90–150% |
 | "Main attack links only", "just the movement" (within a minute of a links answer) | v4: filters the last links answer |
 | "Yes" (within 20 s of "Want me to look that up?") | v4: runs the lookup. Not the default |
 | "Where does the Cane of Kulemak drop?", "which boss drops X", "where do I find the Porcupine card" | never logs a drop. Says the tracker has no drop data and to say "research X" (poewiki + poedb) |
@@ -50,6 +53,7 @@ From then on, always use the http://127.0.0.1:8765/ address (the plain file stil
 | "Going to try Mervail with 1 Fate", "fighting Brutus with 2 fates" | checks against your Fate cap; triple beep if it's over |
 | "Near death", "I died", "reached tier 6", "atlas opened", "killed Brutus with one fate", "killed Oak" / "helped Alira" | events, Fate kills, bandits. Two near-deaths within 90 s count as one incident |
 | **"Research Desecrate"**, "look up Bones of Ullr", "wiki Forged Frostbearer" | says "Looking up…" right away, then 1–3 sentences a few seconds later; the full answer + poewiki link go in History. Only these keywords trigger a lookup |
+| **"Get wiki link for Darkness Enthroned"**, "wiki link for the Dark Monarch", "poedb link for X" | v5: finds the poewiki page (same name check as research; poedb if the wiki has none), adds it to the **Wiki links** panel as a link you click when you're ready (opens in a new tab) and says "Wiki link for X added." Nothing goes on the clipboard (v5.1); each row has a Copy button if you want it |
 | "Never mind" (cancels a running lookup, otherwise undo), "repeat that" (re-reads the last answer) | research control |
 | **F10** (in game, on the character sheet's Defences tab or the PoB sidebar), "scan my defences", or Ctrl+V a screenshot into the tracker | reads the numbers locally; "confirm" / "discard" (or the buttons) |
 | "Undo" / "scratch that", "repeat", "mute" / "unmute" | control. Undo works for every command above |
@@ -80,7 +84,9 @@ of the screen, upscales it 2–3×, reads it with the built-in Windows OCR (no i
 v3: if Windows OCR fails for **any** reason (winrt 3.2.1's "Invalid parameter count" included) it falls back to rapidocr automatically
 (now installed by setup.bat) and the reason goes in the log. Windows OCR on a real Windows 11 PC reads the labels but drops the small
 coloured fire/cold/lightning numbers, so in `auto` mode a read with a label but no number is redone by rapidocr (engine shows "windows+rapidocr"). It reads life, mana, ES, armour, evasion, attack + spell block, and res. A pasted full-screen screenshot is cropped the same way.
+v5.1: it also reads your **character level**, the number in the round badge below the portrait, left of Life / Mana (found from the Life / Mana labels under your name and area line). A lone digit like "4" is easy to miss, so when the first read misses it the portrait area is read again, enlarged (rapidocr; on Windows OCR this second pass uses rapidocr too). Only 1–100 counts, and with no character header on screen no level is guessed. After "confirm" it fills Char level, and a level-based PoB switches to the matching tab.
 v4: on the **Offence** tab it says "That's the Offence tab, open Defences and press F10 again." with no confirm. Under 4 fields it warns "That read looks incomplete" first. Under 6 fields, auto mode retries with rapidocr, which is pre-warmed at startup so the first F10 isn't slow.
+v5.2: it also reads **evade chance**, **spell suppression** and **physical damage reduction** (shown and checked when you turn those stats on in ⚙ Configure).
 Nothing changes until you say "confirm" (or press Apply); "discard" throws it away; "undo" works after confirming.
 You can also paste a screenshot (Win+Shift+S, then Ctrl+V on the tracker page). In-game "75% (82%)" means 82 uncapped;
 PoB's "75% (+12%)" means 87 uncapped. F10 is listen-only like F9: it isn't blocked and nothing is sent to the game.
@@ -92,12 +98,16 @@ cd voice; .\.venv\Scripts\python.exe companion.py --ocr-selftest windows      # 
 .\.venv\Scripts\python.exe companion.py --ocr-file C:\path\shot.png --ocr-engine windows   # a real screenshot: fields + raw text
 ```
 
+## Power Chase wiki links (v5.2)
+When the tracker is opened through the companion, each new Power Chase item is looked up quietly on poewiki (poedb as fallback) with the same strict name check as "get wiki link"; a confident match makes the name a link. Generic entries ("Abyss jewel", "+1 Spectre chest", "Dread boss fight") are never looked up. Offline = left unlinked and retried later. The page calls `POST /api/wiki_lookup {"name": ...}` (local only). Tests: `python test_v52.py`.
+
 ## Build: your Path of Building (links + tree)
 The tracker ships with an example build (Frostbearer Spectre Necromancer: 17 skill sets, 23 trees) as the default build. How to name things in your own PoB: `docs/POB_GUIDE.md`. To load a new version:
-paste a PoB export code, a pobb.in or poe.ninja/pob link, or the XML into **Links & tree → Import Path of Building** and press Import
+click **Import PoB build** (header) and paste a PoB export code or a pobb.in / poe.ninja/pob link, or choose / drop the .xml file, and press Import PoB build
 (goes through the companion), or run `python companion.py --import-pob <code|url|file.xml>` (writes `voice/build_config.json`; the tracker picks it up on its next start).
-- Stages: Act 1…Act 10 from the skill sets/trees titled "Act N" (a set titled "Act 4-10" covers acts 4–10, each with its own Act N tree); Early / Mid / Late maps from the map sets, paired with trees by their {n} tag, with a variant dropdown (first one is the default). Colour codes (^6, ^xRRGGBB) are stripped.
-- Categories come from your socket group labels and "==== Main Skills / Utility / Auras / Support Spectres ====" headers, else from the gems. **Edit mapping + categories** lets you change any group's category and which set/tree each stage uses. Saved in the browser; **Export build config** saves a JSON copy.
+- Stages: Act 1…Act 10 from the skill sets/trees titled "Act N" (a set titled "Act 4-10" covers acts 4–10, each with its own Act N tree; a number is only an act after "Act" / "A", so "Get a 6 link" or "5L chest" never become Act 6 / Act 5); Early / Mid / Late maps from the map sets, paired with trees by their {n} tag, with a variant dropdown (first one is the default). Colour codes (^6, ^xRRGGBB) are stripped.
+- v5.1: **any PoB imports.** Level names ("22", "Level 22", "Lvl 22", "lv22", "L22") become level tabs that follow your Char level (highest level ≤ yours; click a tab to look at another, "back to level N" to return). Other names become tabs you pick by hand ("Early Mapping" / "Red Maps" / "End Game" still go to Early / Late maps; "Early Game" = Act 1). One tree + one skill set = no tabs. Mixed files: act names on acts, the rest as map stages or named tabs. A tree version the tracker doesn't ship (3_27, 3_28) is drawn on the nearest shipped tree. **Maps stage: Auto / Early / Mid / Late** buttons show that stage at once and pin it for maps. Voice: "next tree", "previous tree", "show tree Level 60", "back to current tree".
+- Categories come from your socket group labels and "==== Main Skills / Utility / Auras / Support Spectres ====" headers, else from the gems. **Edit stage mapping** (opens under the Links & tree header; **Done** closes it) lets you change any group's category and which set/tree each stage uses. Saved in the browser (and in **Download backup**).
 - The tree closeup shows the nodes new versus the previous stage (green), already allocated (gold), the class start, and the new notables in the caption.
 
 ## Fate bosses
@@ -148,5 +158,15 @@ F9 hold = talk            F10 = read Defences tab           Ctrl+V screenshot in
 "where does X drop" (→ say research X)   "vendor recipe for a physical weapon"
 "what are my res"   "what's next"   "how am I doing"   "what about bones of ullr"   "near death"
 "research desecrate"   "look up X"   "wiki X"   "never mind"   "repeat that"
-"confirm" / "discard" (screenshot)   "undo"   "mute" / "unmute"
+"next tree" / "show tree Level 60"   "confirm" / "discard" (screenshot)   "undo"   "mute" / "unmute"
 ```
+
+
+## v5.3 phrases
+- Confirm a read: "confirmed", "yes confirm", "apply", "looks good".
+- Lab trials: "lab trial done", "Crypt trial done", "missed the lab trial in the prison". Corrections: "no, not normal lab", "that's wrong".
+- New run: "restart timer" / "reset timer" / "new run", then "yes".
+- Wiki: "pull link for X", "link for X", "wiki X", "research link for X".
+- Fate: "what's the reward for <boss>", "what fate does <boss> give".
+- Where you are: "we're in the Submerged Passage", "fighting Merveil". Kills: "Hillock down", "Merveil dead".
+- New parser module: `intents_v53.py`. Tests: `test_v53.py`.

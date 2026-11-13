@@ -12,25 +12,76 @@ let BCFG = loadBcfg();
 const LV = { svgCache: {}, edit: false };
 
 function loadBcfg() {
-  try { const r = localStorage.getItem(BCFG_KEY); if (r) return JSON.parse(r); } catch (e) { console.warn('build cfg', e); }
-  return typeof DEFAULT_BUILD_CFG !== 'undefined' ? JSON.parse(JSON.stringify(DEFAULT_BUILD_CFG)) : null;
+  try { const r = localStorage.getItem(BCFG_KEY); if (r) return bcfgNorm(JSON.parse(r)); } catch (e) { console.warn('build cfg', e); }
+  return typeof DEFAULT_BUILD_CFG !== 'undefined' ? bcfgNorm(JSON.parse(JSON.stringify(DEFAULT_BUILD_CFG))) : null;
+}
+/* v5.1: any PoB. mode 'acts' (Act 1…10 + Early/Mid/Late maps, plus named tabs for anything else), 'levels' (one tab per
+   level, follows the character level), 'named' (tabs you pick) or 'single' (one setup, no tabs). Older configs are 'acts'. */
+function bcfgNorm(c) {
+  if (!c || !c.stages) return c;
+  if (!Array.isArray(c.stageList) || !c.stageList.length) { c.mode = 'acts'; c.stageList = [...STAGE_IDS]; }
+  c.mode = c.mode || 'acts';
+  c.stageMeta = c.stageMeta || {};
+  for (const id of c.stageList) {
+    if (!c.stageMeta[id]) c.stageMeta[id] = { label: STAGE_NAME[id] || id, kind: STAGE_NAME[id] ? (id[0] === 'A' ? 'act' : 'map') : 'named' };
+    if (!c.stages[id]) c.stages[id] = { variants: [] };
+  }
+  c.active = c.active || {};
+  return c;
 }
 function saveBcfg() { LV.svgCache = {}; try { localStorage.setItem(BCFG_KEY, JSON.stringify(BCFG)); } catch (e) { toast('Could not save the build config: ' + e.message, 1); } }
-function setBcfg(cfg, why) { BCFG = cfg; BCFG.active = BCFG.active || { EM: 0, MM: 0, LM: 0 }; saveBcfg(); S.linkView = null; save(); renderAll(); if (why) toast(why, 2); }
+function setBcfg(cfg, why) { BCFG = bcfgNorm(cfg); saveBcfg(); S.linkView = null; S.linkPick = null; save(); renderAll(); if (why) toast(why, 2); }
 function resetBcfg() { localStorage.removeItem(BCFG_KEY); BCFG = loadBcfg(); LV.svgCache = {}; S.linkView = null; save(); renderAll(); toast('Build reset to the default (your PoB).', 2); }
 
 /* ---- stages ---- */
+const MAP_IDS = ['EM', 'MM', 'LM'];
+const stageIds = () => (BCFG && BCFG.stageList) || STAGE_IDS;
+const stageMode = () => (BCFG && BCFG.mode) || 'acts';
+const hasStage = (id) => stageIds().includes(id);
+const stageMeta = (id) => (BCFG && BCFG.stageMeta && BCFG.stageMeta[id]) || { label: STAGE_NAME[id] || id, kind: 'act' };
+const stageLabel = (id) => stageMeta(id).label || STAGE_NAME[id] || id;
+function stageShort(id) {
+  const m = stageMeta(id);
+  if (stageMode() === 'acts' && STAGE_NAME[id]) return id;
+  if (m.kind === 'level') return 'Lv ' + m.level;
+  return m.label.length > 22 ? m.label.slice(0, 21) + '…' : m.label;
+}
 function mapStageAuto() { const t = C().band || 0; return t >= 14 ? 'LM' : t >= 6 ? 'MM' : 'EM'; }
-function stageAuto() { const a = curAct(); return a <= 10 ? 'A' + a : (S.mapStagePin || mapStageAuto()); }
-function stageShown() { return S.linkView || stageAuto(); }
+const mapStageNow = () => S.mapStagePin || mapStageAuto();
+function levelStage(lv) {      // the highest level tab at or below the character level (else the lowest)
+  const ls = stageIds().filter((id) => stageMeta(id).kind === 'level').sort((a, b) => stageMeta(a).level - stageMeta(b).level);
+  if (!ls.length) return stageIds()[0];
+  let pick = ls[0]; for (const id of ls) if (stageMeta(id).level <= (lv || 1)) pick = id;
+  return pick;
+}
+function stageAuto() {
+  const mode = stageMode(), ids = stageIds(), a = curAct();
+  if (mode === 'single') return ids[0];
+  if (a > 10) {
+    const ms = mapStageNow();
+    if (hasStage(ms)) return ms;
+    const have = MAP_IDS.filter(hasStage);
+    if (have.length) return have.reduce((b, x) => (Math.abs(MAP_IDS.indexOf(x) - MAP_IDS.indexOf(ms)) < Math.abs(MAP_IDS.indexOf(b) - MAP_IDS.indexOf(ms)) ? x : b));
+  }
+  if (mode === 'acts') return 'A' + Math.min(a, 10);
+  if (mode === 'levels') return levelStage(C().level);
+  return S.linkPick && hasStage(S.linkPick) ? S.linkPick : ids[0];      // named: you pick
+}
+function stageShown() { return S.linkView && hasStage(S.linkView) ? S.linkView : stageAuto(); }
 function stageForQuery(q = {}) {
-  if (q.stage) return q.stage;
-  if (q.act) return 'A' + Math.min(10, Math.max(1, q.act));
-  if (q.maps) return curAct() > 10 ? stageAuto() : 'EM';
-  if (q.level) { const i = ACT_END_LVL.findIndex((l) => q.level <= l); return i < 0 ? 'EM' : 'A' + (i + 1); }
+  if (q.stage && hasStage(q.stage)) return q.stage;
+  const acts = stageMode() === 'acts';
+  if (q.act && acts) return 'A' + Math.min(10, Math.max(1, q.act));
+  if (q.maps) { if (curAct() > 10) return stageAuto(); const m = MAP_IDS.find(hasStage); return m || stageAuto(); }
+  if (q.level && acts) { const i = ACT_END_LVL.findIndex((l) => q.level <= l); return i < 0 ? 'EM' : 'A' + (i + 1); }
+  if (q.level && stageMode() === 'levels') return levelStage(q.level);
   return stageAuto();
 }
-const prevStage = (st) => (st === 'A1' ? null : st === 'EM' ? 'A10' : st === 'MM' ? 'EM' : st === 'LM' ? 'MM' : 'A' + (+st.slice(1) - 1));
+function prevStage(st) {
+  const ids = stageIds(), i = ids.indexOf(st);
+  if (i <= 0 || (stageMode() === 'acts' && stageMeta(st).kind === 'named')) return null;
+  return ids[i - 1];
+}
 function variantOf(st) {
   const s = BCFG && BCFG.stages[st]; if (!s || !s.variants.length) return null;
   return s.variants[Math.min((BCFG.active || {})[st] || 0, s.variants.length - 1)];
@@ -39,7 +90,42 @@ const setOf = (v) => (v && v.set != null ? BCFG.sets[v.set] : null);
 const specOf = (v) => (v && v.spec != null ? BCFG.specs[v.spec] : null);
 function groupsOf(st) { const s = setOf(variantOf(st)); return s ? s.groups.filter((g) => g.en !== false && g.gems.length) : []; }
 function byCat(st) { const out = {}; for (const g of groupsOf(st)) (out[g.cat] = out[g.cat] || []).push(g); return out; }
-function stageTitle(st) { const v = variantOf(st), s = setOf(v); return STAGE_NAME[st] + (st.length === 2 && /M$/.test(st) && s ? ' · ' + s.clean : ''); }
+function stageTitle(st) {
+  const v = variantOf(st), s = setOf(v);
+  if (stageMode() === 'single') return s ? s.clean : 'Your build';
+  return stageLabel(st) + (MAP_IDS.includes(st) && s ? ' · ' + s.clean : '');
+}
+/* v5.1: "next tree" / "previous tree" / "show tree Level 60" (voice) and the tabs */
+function pickStage(st) {
+  if (stageMode() === 'named' && curAct() <= 10) { S.linkPick = st; S.linkView = null; }
+  else S.linkView = st === stageAuto() ? null : st;
+  save(); renderLinks();
+}
+function findStage(name) {
+  const n = ckey(String(name || '').replace(/^(?:the\s+)?/, ''));
+  if (!n) return null;
+  const ids = stageIds(), lv = /(?:level|lvl|lv|l)?\s*(\d{1,3})$/.exec(n);
+  if (lv && stageMode() === 'levels') { const id = 'L' + lv[1]; if (hasStage(id)) return id; }
+  const act = /^(?:act|a)\s*(\d{1,2})$/.exec(n); if (act && hasStage('A' + act[1])) return 'A' + act[1];
+  const words = { 'early maps': 'EM', 'early mapping': 'EM', 'mid maps': 'MM', 'late maps': 'LM', 'red maps': 'LM', 'end game': 'LM', endgame: 'LM' };
+  if (words[n] && hasStage(words[n])) return words[n];
+  return ids.find((id) => ckey(stageLabel(id)) === n || ckey(id) === n) || fuzzyPick(ids, (id) => [stageLabel(id), stageShort(id)], n, 0.6) || null;
+}
+function treeNav(a) {
+  if (!BCFG) return { say: 'No build loaded.', level: 'unknown' };
+  const ids = stageIds();
+  if (stageMode() === 'single' || ids.length < 2) return { say: 'Your PoB has one setup, so there is only one tree.', level: 'unknown' };
+  let st;
+  if (a.auto) { S.linkView = null; S.linkPick = null; save(); renderLinks(); st = stageShown(); }
+  else {
+    if (a.name) { st = findStage(a.name); if (!st) return { say: `No tree called ${a.name}. Your PoB has ${ids.map(stageLabel).slice(0, 8).join(', ')}.`, level: 'unknown' }; }
+    else { const i = ids.indexOf(stageShown()); st = ids[Math.max(0, Math.min(ids.length - 1, i + (a.dir || 1)))]; if (st === stageShown()) return { say: `Already on the ${a.dir < 0 ? 'first' : 'last'} tree, ${stageLabel(st)}.`, level: 'unknown' }; }
+    pickStage(st);
+  }
+  const v = variantOf(st), set = setOf(v), sp = specOf(v);
+  const sec = panelEl('links'); if (sec && !layout().hidden.includes('links')) sec.scrollIntoView({ block: 'nearest' });
+  return { say: `Showing ${stageTitle(st)}${set && stageMode() !== 'acts' ? `: skill set ${set.clean}` : ''}${sp ? `, tree ${sp.clean}` : ''}.` };
+}
 
 /* ---- spoken answers ---- */
 const SAY_FIX = (s) => s.replace(/\bsrs\b/gi, 'SRS').replace(/\bhop\b/gi, 'Herald of Purity');
@@ -102,9 +188,15 @@ function mainGemsNow() { const g = (byCat(stageAuto()).main || [])[0]; return g 
 /* ---- passive tree closeup (SVG) ---- */
 async function treeData(ver) {
   if (TREES[ver]) return TREES[ver];
-  if (!VOICE.served) return null;
-  try { const d = await (await fetch('/api/tree/' + ver)).json(); if (d && d.nodes) { TREES[ver] = d; return d; } } catch (e) { console.warn('tree', e); }
-  return null;
+  if (VOICE.served) {
+    try { const d = await (await fetch('/api/tree/' + ver)).json(); if (d && d.nodes) { TREES[ver] = d; return d; } } catch (e) { console.warn('tree', e); }
+  }
+  // v5.1: a PoB from another patch (3_27, 3_28): the closest tree we have (node ids barely change between patches)
+  const have = Object.keys(TREES).filter((k) => TREES[k] && TREES[k].nodes && !TREES[k].alias);
+  if (!have.length) return null;
+  const num = (v) => { const m = String(v).match(/\d+/g) || [0]; return +m[0] * 100 + +(m[1] || 0); };
+  const best = have.reduce((b, k) => (Math.abs(num(k) - num(ver)) < Math.abs(num(b) - num(ver)) ? k : b));
+  return (TREES[ver] = { ...TREES[best], v: TREES[best].v || best, requested: ver, alias: true });
 }
 function treeDiff(st) {
   const sp = specOf(variantOf(st)); if (!sp) return null;
@@ -183,7 +275,7 @@ function treeMini(T, D, box) {   // whole-tree overview with the crop box
 async function renderTree(st) {
   const el = $('treeBox'); if (!el) return;
   const D = treeDiff(st);
-  if (!D) { el.innerHTML = '<div class="dim">No passive tree mapped to this stage. Assign one in “Edit mapping”.</div>'; $('treeCap').textContent = ''; return; }
+  if (!D) { el.innerHTML = '<div class="dim">No passive tree mapped to this stage. Pick one in “Edit stage mapping”.</div>'; $('treeCap').textContent = ''; el.dataset.key = ''; return; }
   const key = st + '|' + (BCFG.active || {})[st] + '|' + D.sp.clean + '|' + (D.psp ? D.psp.clean : '');
   const T = await treeData(D.ver);
   if (!T) { el.innerHTML = `<div class="dim">Tree data ${esc(D.ver)} not available here (open the tracker through the companion).</div>`; return; }
@@ -195,7 +287,7 @@ async function renderTree(st) {
   if (el.dataset.key !== key) { el.innerHTML = LV.svgCache[key]; el.dataset.key = key; }
   const nb = [...D.fresh].filter((id) => T.nodes[id] && (T.nodes[id][2] === 'n' || T.nodes[id][2] === 'k')).map((id) => T.nodes[id][3]);
   const pts = [...D.fresh].filter((id) => T.nodes[id] && T.nodes[id][2] !== 's' && T.nodes[id][2] !== 'm').length;
-  $('treeCap').innerHTML = `<b>${esc(D.sp.clean)}</b>: <span class="ok">+${pts} point${pts === 1 ? '' : 's'}</span>${D.pst ? ` vs ${esc(STAGE_NAME[D.pst])}` : ' from the start'}${nb.length ? ` · new notables: <b>${nb.map(esc).join(', ')}</b>` : ''} <span class="dim">· ${D.alloc.size} allocated · tree ${esc(D.ver)}</span>`;
+  $('treeCap').innerHTML = `<b>${esc(/^\d{1,3}$/.test(D.sp.clean) ? 'Level ' + D.sp.clean : D.sp.clean)}</b>: <span class="ok">+${pts} point${pts === 1 ? '' : 's'}</span>${D.pst ? ` vs ${esc(stageLabel(D.pst))}` : ' from the start'}${nb.length ? ` · new notables: <b>${nb.map(esc).join(', ')}</b>` : ''} <span class="dim">· ${D.alloc.size} allocated · tree ${esc(D.ver)}${T.v && T.v !== D.ver ? ` (drawn on the ${esc(T.v)} tree)` : ''}</span>`;
 }
 
 /* ---- right-hand panel ---- */
@@ -208,45 +300,101 @@ function cardHtml(g, si, gi) {
 function renderLinks() {
   const box = $('linkCards'); if (!box) return;
   if (!BCFG) { box.innerHTML = '<div class="dim">No build loaded. Paste a PoB code below.</div>'; return; }
-  const auto = stageAuto(), st = stageShown();
-  $('linkSub').textContent = `${BCFG.name || 'Build'} · ${BCFG.sets.length} skill sets, ${BCFG.specs.length} trees${BCFG.source && BCFG.source.kind === 'default' ? ' · default' : ''}`;
-  $('linkStages').innerHTML = STAGE_IDS.map((id) => `<button class="sm${id === st ? ' on' : ''}${id === auto ? ' auto' : ''}" data-lstage="${id}" title="${STAGE_NAME[id]}">${id}</button>`).join('') + (S.linkView ? ' <button class="sm ghost" data-lstage="">back to current</button>' : '');
+  const auto = stageAuto(), st = stageShown(), mode = stageMode(), ids = stageIds();
+  const MODE_SUB = { acts: '', levels: ' · tabs by level', named: ' · pick a tab', single: ' · one setup' };
+  $('linkSub').textContent = `${BCFG.name || 'Build'} · ${BCFG.sets.length} skill set${BCFG.sets.length === 1 ? '' : 's'}, ${BCFG.specs.length} tree${BCFG.specs.length === 1 ? '' : 's'}${MODE_SUB[mode] || ''}${BCFG.source && BCFG.source.kind === 'default' ? ' · default' : ''}`;
+  const tabs = $('linkStages');
+  tabs.classList.toggle('hidden', mode === 'single');
+  const backTxt = mode === 'levels' ? `back to level ${C().level || 1}` : 'back to current';
+  tabs.innerHTML = mode === 'single' ? '' : ids.map((id) => `<button class="sm${id === st ? ' on' : ''}${id === auto ? ' auto' : ''}${stageMeta(id).kind === 'named' ? ' named' : ''}" data-lstage="${esc(id)}" title="${esc(stageLabel(id))}${id === auto ? ' (current)' : ''}">${esc(stageShort(id))}</button>`).join('') +
+    (S.linkView && hasStage(S.linkView) && mode !== 'named' ? ` <button class="sm ghost" data-lstage="">${backTxt}</button>` : '');
+  renderMapStageSeg();
   const s = BCFG.stages[st] || { variants: [] };
   $('linkVariant').innerHTML = s.variants.length > 1 ? `<label class="dim">Variant <select id="linkVariantSel">${s.variants.map((v, i) => `<option value="${i}"${i === ((BCFG.active || {})[st] || 0) ? ' selected' : ''}>${esc((setOf(v) || {}).clean || 'set ' + i)}${specOf(v) ? ' · tree ' + esc(specOf(v).clean) : ''}</option>`).join('')}</select></label>` : '';
   const v = variantOf(st), set = setOf(v);
-  $('linkHead').innerHTML = `<b>${esc(STAGE_NAME[st])}</b>${st === auto ? ' <span class="badge met">now</span>' : ' <span class="badge">browsing</span>'} <span class="dim">${set ? 'skill set “' + esc(set.clean) + '”' : 'no skill set'}${v && v.setInherited ? ' (inherited)' : ''}</span>`;
-  if (!set) { box.innerHTML = '<div class="dim">No skill set mapped to this stage.</div>'; }
-  else {
-    const si = v.set, gs = set.groups.map((g, gi) => [g, gi]).filter(([g]) => g.gems.length);
-    gs.sort((a, b) => CAT_ORDER.indexOf(a[0].cat) - CAT_ORDER.indexOf(b[0].cat) || a[1] - b[1]);
-    box.innerHTML = gs.map(([g, gi]) => cardHtml(g, si, gi)).join('');
-  }
+  const badge = mode === 'single' ? '<span class="badge">whole build</span>'
+    : st === auto ? (mode === 'levels' && curAct() <= 10 && stageMeta(st).kind === 'level' ? ` <span class="badge met">now · level ${C().level || 1}</span>` : mode === 'named' ? ' <span class="badge met">shown</span>' : ' <span class="badge met">now</span>')
+      : ' <span class="badge">browsing</span>';
+  $('linkHead').innerHTML = `<b>${esc(mode === 'single' ? (set ? set.clean : 'Your build') : stageLabel(st))}</b> ${badge} <span class="dim">${set ? 'skill set “' + esc(set.clean) + '”' : 'no skill set'}${v && v.setInherited ? ' (inherited)' : ''}</span>`;
+  renderCards(st);
   renderTree(st);
   renderMapping();
 }
+function renderCards(st) {
+  const box = $('linkCards'), v = variantOf(st), set = setOf(v);
+  if (!set) { box.innerHTML = '<div class="dim">No skill set mapped to this stage. Pick one in “Edit stage mapping”.</div>'; return; }
+  const si = v.set, gs = set.groups.map((g, gi) => [g, gi]).filter(([g]) => g.gems.length);
+  gs.sort((a, b) => CAT_ORDER.indexOf(a[0].cat) - CAT_ORDER.indexOf(b[0].cat) || a[1] - b[1]);
+  box.innerHTML = gs.length ? gs.map(([g, gi]) => cardHtml(g, si, gi)).join('') : '<div class="dim">This skill set has no gems.</div>';
+}
+const renderLinkCardsEdit = () => { if (BCFG) renderCards(stageShown()); };
+/* Maps stage: Auto (follows your tier once you're mapping) or a pinned Early / Mid / Late. Picking one shows it at once. */
+function renderMapStageSeg() {
+  const el = $('mapStageSeg'); if (!el) return;
+  const have = MAP_IDS.filter(hasStage);
+  el.classList.toggle('hidden', !have.length || stageMode() === 'single');
+  if (!have.length) { el.innerHTML = ''; return; }
+  const pin = S.mapStagePin && hasStage(S.mapStagePin) ? S.mapStagePin : '';
+  el.innerHTML = `<span class="dim" title="Which map stage counts as “now” once you're in maps. Auto follows your map tier (T1–5 early, T6–13 mid, T14+ late).">Maps stage</span><span class="seg">` +
+    `<button type="button" class="sm${pin ? '' : ' on'}" data-mappin="" title="Follow my map tier (now: ${esc(stageLabel(mapStageAuto()))})">Auto</button>` +
+    have.map((id) => `<button type="button" class="sm${pin === id ? ' on' : ''}" data-mappin="${id}" title="Always use ${esc(stageLabel(id))} once I'm in maps, and show it now">${esc({ EM: 'Early', MM: 'Mid', LM: 'Late' }[id])}</button>`).join('') + '</span>' +
+    (pin ? ` <span class="badge met">pinned: ${esc(stageLabel(pin))}</span>` : ` <span class="dim small">auto: ${esc(stageLabel(mapStageAuto()))}${curAct() <= 10 ? ' once you map' : ''}</span>`);
+}
+function setMapPin(id) {
+  S.mapStagePin = id || null;
+  if (id) S.linkView = id === stageAuto() ? null : id;               // show the pinned stage now, even in the campaign
+  else if (MAP_IDS.includes(S.linkView)) S.linkView = null;
+  save(); renderLinks();
+  const box = $('linkCards'); if (box) { box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash'); }
+  toast(id ? `Maps stage pinned to ${esc(stageLabel(id))}${curAct() <= 10 ? ': showing it now; it becomes “now” once you map' : ''}.` : 'Maps stage follows your map tier again.', 2);
+}
 function renderMapping() {
-  const el = $('mapEditor'); if (!el || !BCFG || !LV.edit) { if (el) el.innerHTML = ''; return; }
+  const el = $('mapEditor'); if (!el) return;
+  el.classList.toggle('hidden', !BCFG || !LV.edit);
+  $('btnLinkEdit').classList.toggle('on', LV.edit); if ($('btnLinkEdit2')) $('btnLinkEdit2').classList.toggle('on', LV.edit);
+  if (!BCFG || !LV.edit) { el.innerHTML = ''; return; }
+  if (el.contains(document.activeElement) && document.activeElement.tagName === 'SELECT') return;     // don't rebuild under the open dropdown
+  const cur = stageShown();
   const setOpts = (cur) => `<option value="">—</option>` + BCFG.sets.map((s, i) => `<option value="${i}"${i === cur ? ' selected' : ''}>${esc(s.clean)}</option>`).join('');
   const specOpts = (cur) => `<option value="">—</option>` + BCFG.specs.map((s, i) => `<option value="${i}"${i === cur ? ' selected' : ''}>${esc(s.clean)}</option>`).join('');
-  el.innerHTML = `<table class="maptab"><tr><th>Stage</th><th>Skill set</th><th>Tree</th><th></th></tr>` + STAGE_IDS.map((st) => (BCFG.stages[st].variants.length ? BCFG.stages[st].variants : [{ set: null, spec: null }]).map((v, i) => `<tr><td>${i ? '' : STAGE_NAME[st]}</td><td><select data-map="${st}:${i}:set">${setOpts(v.set)}</select></td><td><select data-map="${st}:${i}:spec">${specOpts(v.spec)}</select></td><td>${i ? `<button class="sm ghost" data-mapdel="${st}:${i}">×</button>` : `<button class="sm ghost" data-mapadd="${st}" title="add a variant">+</button>`}</td></tr>`).join('')).join('') + '</table>' +
+  el.innerHTML = `<div class="row"><b>Stage mapping</b><span class="dim small">Pick the PoB skill set and tree for each ${stageMode() === 'single' ? 'setup' : 'stage'}. Changes save at once and show above. Gem-group categories: the dropdown on each card.</span><span class="sp"></span><button class="sm pri" id="btnMapDone" type="button" title="Close the stage mapping editor">Done</button></div>` +
+    `<table class="maptab"><tr><th>Stage</th><th>Skill set</th><th>Tree</th><th></th></tr>` + stageIds().map((st) => (BCFG.stages[st].variants.length ? BCFG.stages[st].variants : [{ set: null, spec: null }]).map((v, i) => `<tr class="${st === cur ? 'cur' : ''}" data-maprow="${esc(st)}"><td>${i ? '<span class="dim">variant ' + (i + 1) + '</span>' : `<button class="linkish" data-lstage="${esc(st)}" title="Show this stage">${esc(stageLabel(st))}</button>`}</td><td><select data-map="${esc(st)}:${i}:set" title="Skill set for ${esc(stageLabel(st))}">${setOpts(v.set)}</select>${v.setInherited ? '<span class="dim small"> (inherited)</span>' : ''}</td><td><select data-map="${esc(st)}:${i}:spec" title="Tree for ${esc(stageLabel(st))}">${specOpts(v.spec)}</select>${v.specInherited ? '<span class="dim small"> (inherited)</span>' : ''}</td><td>${i ? `<button class="sm ghost" data-mapdel="${esc(st)}:${i}" title="Remove this variant">×</button>` : `<button class="sm ghost" data-mapadd="${esc(st)}" title="Add a variant (another set / tree for this stage)">+</button>`}</td></tr>`).join('')).join('') + '</table>' +
     ((BCFG.unassigned && (BCFG.unassigned.sets.length || BCFG.unassigned.specs.length)) ? `<div class="dim small">Not mapped by title: ${[...BCFG.unassigned.sets.map((i) => BCFG.sets[i].clean), ...BCFG.unassigned.specs.map((i) => 'tree ' + BCFG.specs[i].clean)].map(esc).join(', ')}</div>` : '');
+}
+function toggleMapEdit(on) {
+  LV.edit = on == null ? !LV.edit : on;
+  renderMapping();                                   // only the editor changes (the cards' category dropdowns follow on the next render)
+  renderLinkCardsEdit();
+  if (LV.edit) { const el = $('mapEditor'); el.scrollIntoView({ block: 'nearest' }); const cur = el.querySelector('tr.cur'); if (cur) cur.scrollIntoView({ block: 'nearest' }); }   // (no focus(): focusing a select costs ~160 ms)
 }
 function editMapping(key, val) {
   const [st, i, what] = key.split(':'); const s = BCFG.stages[st];
   if (!s.variants.length) s.variants.push({ set: null, spec: null });
   s.variants[+i][what] = val === '' ? null : +val; delete s.variants[+i][what + 'Inherited']; delete s.inherited;
-  saveBcfg(); renderLinks();
+  BCFG.active = BCFG.active || {}; BCFG.active[st] = +i;                 // show the variant you just edited
+  const sets = new Set(), specs = new Set();
+  for (const x of Object.values(BCFG.stages)) for (const v of x.variants) { if (v.set != null) sets.add(v.set); if (v.spec != null) specs.add(v.spec); }
+  BCFG.unassigned = { sets: BCFG.sets.map((_, k) => k).filter((k) => !sets.has(k)), specs: BCFG.specs.map((_, k) => k).filter((k) => !specs.has(k)) };
+  saveBcfg();
+  if (stageMode() === 'named' && curAct() <= 10) { S.linkPick = st; S.linkView = null; } else S.linkView = st === stageAuto() ? null : st;
+  save();
+  if (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.map) document.activeElement.blur();
+  renderLinks();
+  const box = $('linkCards'); box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
+  toast(`${esc(stageLabel(st))} now uses ${what === 'set' ? 'skill set' : 'tree'} “${esc(val === '' ? 'none' : (what === 'set' ? BCFG.sets : BCFG.specs)[+val].clean)}”.`, 2);
 }
 async function importPob(text) {
   const st = $('pobStatus');
   if (!text.trim()) return;
   if (!VOICE.served) { st.innerHTML = '<span class="bad">Import runs in the companion: open the tracker with run.bat (http://127.0.0.1:8765/), or run companion.py --import-pob.</span>'; return; }
-  st.textContent = 'Importing…';
+  st.textContent = 'Importing your PoB build…';
   try {
     const r = await (await fetch('/api/pob_import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })).json();
     if (!r.ok) throw new Error(r.error || 'import failed');
-    setBcfg(r.config, 'Build imported.');
-    st.innerHTML = `<pre class="small">${esc(r.summary)}</pre>`;
+    const MODE_MSG = { acts: 'Links &amp; tree now follow your PoB, act by act.', levels: 'No act names in this PoB, so Links &amp; tree has one tab per level and follows your character level.',
+      named: 'No act or level names in this PoB, so each setup is a tab you pick.', single: 'One setup in this PoB: Links &amp; tree shows it for the whole run.' };
+    setBcfg(r.config, 'PoB build imported. ' + (MODE_MSG[r.config.mode] || MODE_MSG.acts));
+    st.innerHTML = `<div class="ok">Imported. ${MODE_MSG[BCFG.mode] || MODE_MSG.acts} The act timer, pace and everything else work the same. Change any stage with Edit stage mapping.</div><details><summary class="small">What went where</summary><pre class="small">${esc(r.summary)}</pre></details>`;
   } catch (e) { st.innerHTML = `<span class="bad">Import failed: ${esc(e.message)}. The PoB import takes a ${esc(ACCEPTS.pob)} (<a href="${POB_GUIDE_URL}" target="_blank" rel="noopener">PoB setup guide</a>).</span>`; }
 }
 async function adoptCompanionConfig() {   // `companion.py --import-pob` writes voice/build_config.json; adopt it when newer
@@ -257,8 +405,4 @@ async function adoptCompanionConfig() {   // `companion.py --import-pob` writes 
     const t = (d.source || {}).imported || '', mine = (BCFG && BCFG.source && BCFG.source.imported) || '';
     if (t && t > mine) setBcfg(d, 'Loaded the build imported with companion.py --import-pob.');
   } catch (e) { /* offline */ }
-}
-function exportBcfg() {
-  const blob = new Blob([JSON.stringify(BCFG, null, 1)], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'poe330_build_config.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }

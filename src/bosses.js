@@ -18,7 +18,7 @@ function findBoss(text) {
     let sc = full === q ? 100 : head === q ? 90 : head.startsWith(q + ' ') ? 80 : full.startsWith(q) ? 70 : ws.includes(` ${q} `) ? 50 : 0;
     if (!sc) { const qs = q.split(' ').filter((w) => w.length > 2); if (qs.length && qs.every((w) => ws.includes(' ' + w.slice(0, Math.max(3, w.length - 1))))) sc = 30; }
     if (!sc && q.length >= 4) {   // v4: Whisper spellings ("mervail", "dominous"): edit-distance on the first name
-      const r = Math.max(levRatio(q, head), levRatio(q, head.replace(/^the /, '')), ...head.split(' ').filter((w) => w.length > 3).map((w) => levRatio(q, w) - 0.05));
+      const r = Math.max(levRatio(q, head), levRatio(q, head.replace(/^the /, '')), levRatio(q, full.replace(/,/g, '')), ...head.split(' ').filter((w) => w.length > 3).map((w) => levRatio(q, w) - 0.05));   // v5.3: full name too ("caliph headstaver")
       if (r >= 0.72) sc = Math.round(20 * r);
     }
     if (!sc) continue;
@@ -38,6 +38,7 @@ function bossAnswer(q) {
     return { say: `Act ${curAct()} Fate bosses: ${bs.map((b) => b.boss.split(',')[0]).join(', ')}. Ask for one by name.` };
   }
   const b = findBoss(q.boss);
+  if (!b && q.strict) return { say: `I didn't catch the boss name${q.boss ? ' (heard ' + q.boss + ')' : ''}. Say it again, like: what's the reward for Merveil.`, level: 'unknown' };   // v5.3: never fall back to the generic Fate answer
   if (!b) return { say: `I have no Fate data for ${q.boss}. ${UNKNOWN[0].toUpperCase() + UNKNOWN.slice(1)}.`, level: 'unknown' };
   S.bossOpen = b.boss; save(); renderBosses(); scrollToBoss(b.boss);
   if (q.open) {   // v4 "fate boss Merveil": short readback, the open card has every tier

@@ -379,6 +379,7 @@ class Researcher:
             return "Vendor recipe system"
         cq = self.clean_query(q)
         self.closest = []
+        self.cleaned = cq          # v5: reset per call (a stale value from the previous lookup leaked into the next not-found / poedb try)
         if self.match:
             try:
                 m = self.match(cq)
@@ -446,6 +447,51 @@ class Researcher:
             "has_330": bool(re.search(r"\b3\.30\b", wikitext)), "notes_330": notes330,
             "release": box.get("release_version", ""),
         }
+
+    # --- v5: just the link ("get wiki link for Darkness Enthroned")
+    def wiki_link(self, q: str) -> dict:
+        """{found, query, title, url, source: 'poewiki'|'poedb', closest}. Same title search and partial-match guard as
+        research (a weak match like 'White Death' -> 'Death' is refused); poedb is the fallback when poewiki has no page
+        or can't be reached."""
+        q = (q or "").strip()
+        out = {"found": False, "query": q, "title": "", "url": "", "source": "", "closest": []}
+        if not q:
+            return out
+        wiki_err = None
+        try:
+            title = self.find_title(q)
+        except Exception as e:  # noqa: BLE001
+            title, wiki_err = None, redact(e)[:120]
+        if title:
+            out.update(found=True, title=title, source="poewiki",
+                       url="https://www.poewiki.net/wiki/" + urllib.parse.quote(title.replace(" ", "_"), safe="_()',-"))
+            return out
+        out["closest"] = list(getattr(self, "closest", []) or [])
+        hit = self.poedb_page(getattr(self, "cleaned", "") or self.clean_query(q))
+        if hit:
+            out.update(found=True, title=hit[0], url=hit[1], source="poedb")
+        elif wiki_err:
+            out["error"] = wiki_err
+        return out
+
+    def poedb_page(self, name: str):
+        """(title, url) when poedb has a page whose title covers the name, else None."""
+        base = self.rc.get("poedb") or ""
+        if not base or not name or not hasattr(self.http, "get_text"):
+            return None
+        words = re.sub(r"[^\w' -]", "", name).split()
+        slugs = ["_".join(w[:1].upper() + w[1:] for w in words), "_".join(words), re.sub(r"['’]", "", "_".join(w[:1].upper() + w[1:] for w in words))]
+        for slug in dict.fromkeys(x for x in slugs if x):
+            url = base + urllib.parse.quote(slug, safe="_")
+            try:
+                h = self.http.get_text(url, float(self.rc.get("poedb_timeout_s", 3)))
+            except Exception:  # noqa: BLE001
+                continue
+            m = re.search(r"<title>([^<]+)</title>", h or "", re.I)
+            t = re.sub(r"\s*[-|–]\s*PoEDB.*$", "", (m.group(1) if m else ""), flags=re.I).strip()
+            if t and coverage(t, name) >= 0.75 and coverage(name, t) >= 0.5:
+                return t, url
+        return None
 
     def poedb_lookup(self, title: str):
         base = self.rc.get("poedb") or ""

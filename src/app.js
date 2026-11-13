@@ -83,6 +83,7 @@ function matchText(text) {
       if (t.active === false) continue;
       if (!['drop', 'event'].includes(t.type) && !ALIASES[t.id]) continue;
       if (t.id === 'D06') continue;
+      if (t.id === 'E02' && / (is|was|are|s) (dead|down) /.test(' ' + n + ' ') && !/ (i|im|i am|i m) (dead|died) /.test(' ' + n + ' ')) continue;   // v5.3: "Fair Graves is dead" is a boss, not you
       if (aliasesFor(t).some((a) => n.includes(a))) ids.add(t.id);
     }
     if (ids.has('E01')) ids.delete('E02'); // "near death" is not a death
@@ -97,12 +98,7 @@ function matchText(text) {
 /* Near-deaths within 30 min, counted as incidents: entries within 90 s of each other (voice + button, a repeated
    sentence, a replayed command) are one incident. Two separate incidents end the session (S03). */
 const SAME_INCIDENT_MS = 90 * 1000;
-function nearDeaths30() {
-  const ts = S.log.filter((l) => l.fx === 'near' && now() - l.ts < 30 * MIN && l.char === C().created).map((l) => l.ts).sort((a, b) => a - b);
-  let n = 0, last = -Infinity;
-  for (const t of ts) { if (t - last > SAME_INCIDENT_MS) n++; last = t; }
-  return n;
-}
+/* nearDeaths30(): config.js (rule near2) */
 function stashHas(id) { return S.log.some((l) => l.kind === 'drop' && l.ids.includes(id)); }
 
 /* Evaluate a trigger's condition against tracker state where we can; null = check it yourself. */
@@ -116,7 +112,7 @@ function evalCond(t, entry) {
     case 'N01': { const n = S.log.filter((l) => l.char === c.created && l.ids.includes('N01')).length; return { met: true, note: n >= 3 ? `${n} Frostbearer captures logged: swap to the Frostbearer 6L if Raise Spectre is eff. 22+.` : `${n} logged. Under 3: mixed setup, stay on the Absolution bridge.` }; }
     case 'N04': case 'N06': case 'N07': case 'N08': case 'N09': return { met: c.build === 'Spectre Necromancer', note: c.build === 'Spectre Necromancer' ? 'On the Necro: equip / plan it in.' : 'Not on the Necro: stash it in the Necro reroll tab.' };
     case 'N11': return { met: c.build === 'Spectre Necromancer' && cl >= 2 && !S.log.some((l) => l.char === c.created && l.ids.includes('N01')) };
-    case 'E01': { const n = nearDeaths30(); return { met: true, note: n >= 2 ? `${n} near-deaths in 30 min: END THE SESSION (S03).` : 'First in 30 min: drop one tier band, do a gear audit.' }; }
+    case 'E01': return { met: true, note: nearDeathNote() };
     case 'E02': { const hard = S.log.filter((l) => l.kind === 'drop' && l.ids.some((id) => trigById[id]?.hard)).map((l) => l.text); return { met: true, note: hard.length ? 'Hard-trigger items logged: ' + [...new Set(hard)].join(', ') : 'No hard-trigger items logged: re-roll Spectre Necro (re-capture spectres). Nothing working: Boneshatter fallback (H05).' }; }
     case 'S04': return { met: c.level >= 68, note: `Char level ${c.level}.` };
     case 'G01': case 'G02': case 'G03': case 'G04': { const i = +t.id.slice(2) - 1; return { met: cl >= i, note: cl >= i ? 'Defense panel says you meet this gate.' : 'Defense panel says you do NOT meet this gate yet. Fix gear first.' }; }
@@ -131,18 +127,31 @@ function addLog(text, kindHint, opts = {}) {
   text = text.trim();
   if (!text) return;
   const m = matchText(text);
+  /* v5.2: a built-in type turned off in Configure logs as a plain note (no death / near-death / tier side effects) */
+  const evm = EVENTS.find((e) => m.fx === e.fx && e.fx && norm(text).startsWith(norm(e.label).trimEnd())) || EVENTS.find((e) => norm(e.label) === norm(text));
+  const bt = evm ? types().find((t) => t.builtin === evm.label) : null;
+  let typeOff = '';
+  if (bt && !typeOn(bt)) { typeOff = bt.name; m.fx = null; m.ids = m.ids.filter((id) => !evm.ids.includes(id)); kindHint = 'note'; }
   const kind = m.fx ? 'event' : m.ids.some((id) => trigById[id].type === 'drop') ? 'drop' : m.ids.length ? 'event' : (kindHint === 'drop' || kindHint === 'event' ? kindHint : 'note');
   const entry = { id: uid(), ts: now(), text, kind, ids: m.ids, fx: m.fx, pdps: m.pdps, acked: [], char: C().created };
   if (opts.type) entry.type = opts.type;          // v4: which drop / event type it was logged as
   if (opts.detail) entry.detail = opts.detail;
-  if (m.fx === 'near' && S.log.some((l) => l.fx === 'near' && l.char === C().created && entry.ts - l.ts < SAME_INCIDENT_MS)) entry.sameIncident = true;
+  if (!entry.type && bt) entry.type = bt.id;
+  if (typeOff) entry.typeOff = typeOff;
+  const ty = entry.type && !typeOff ? types().find((t) => t.id === entry.type) : null;
+  if (ty && ty.say) entry.typeSay = ty.say;
+  const mergeMs = ((nearRule() || {}).mergeSec ?? 90) * 1000;
+  if (m.fx === 'near' && S.log.some((l) => l.fx === 'near' && l.char === C().created && entry.ts - l.ts < mergeMs)) entry.sameIncident = true;
   S.log.unshift(entry);
   applyFx(entry);
   entry.evals = Object.fromEntries(m.ids.map((id) => [id, evalCond(trigById[id], entry)]));
+  fireRules(entry);
   if (m.ids.includes('F05')) { const txt = text.replace(/^new fate seen:?/i, '').trim(); if (txt) S.fates.seen.push({ text: txt, verdict: 'unknown', ts: now() }); }
   save();
   renderAll();
   showResult(entry);
+  if (ty && ty.alert && !(entry.ids.length && entry.ids.some((id) => trigById[id].priority === 1))) toast(`<b>${esc(ty.name)}</b> logged${ty.say ? ': ' + esc(ty.say) : ''}`, 2);
+  for (const r of entry.rules || []) if (r.alert) toast(`<b>${esc(r.title)}</b>: ${esc(r.detail)}`, 1);
   return entry;
 }
 /* typed into the manual-add box: a custom type wins when one is named ("5 link" -> 5-link), else as before */
@@ -205,7 +214,8 @@ function pauseTimer() {
 function resumeTimer() {
   if (!isPaused()) return { say: C().campaign.start ? 'Timer is already running.' : 'League timer is not running.', level: 'unknown' };
   const p = pauses().at(-1); p.to = now(); save(); renderAll();
-  return { say: `Resumed. ${Math.max(1, Math.round((p.to - p.from) / MIN))} minutes paused, not counted.`, op: { k: 'resume', from: p.from } };
+  const pm = Math.max(1, Math.round((p.to - p.from) / MIN));
+  return { say: `Resumed. ${pm} minute${pm === 1 ? '' : 's'} paused, not counted.`, op: { k: 'resume', from: p.from } };
 }
 
 /* ---------- Pace ---------- */
@@ -221,16 +231,16 @@ function paceInfo(t = now()) {
   const next = MILESTONES[k] || null;
   const deltas = {};
   for (const p of ['t6', 't7', 't8']) {
-    const lastTarget = last ? last[p] : 0;
+    const lastTarget = last ? paceAt(last, p) : 0;
     let d = lastCum - lastTarget;
-    if (next && elapsed > next[p]) d = Math.max(d, elapsed - next[p]); // already late for the next one
+    if (next && elapsed > paceAt(next, p)) d = Math.max(d, elapsed - paceAt(next, p)); // already late for the next one
     deltas[p] = d;
   }
-  const seg = next ? { pure: next.split, target: next[S.pace] - (last ? last[S.pace] : 0), elapsed: activeMs(t) - (last ? activeMs(lastTs) : 0) } : null;
+  const seg = next ? { pure: next.split, target: Math.round(paceAt(next) - (last ? paceAt(last) : 0)), elapsed: activeMs(t) - (last ? activeMs(lastTs) : 0) } : null;
   let projKitava = camp.done.M13 || null;
   if (!projKitava && next) {
     const nextDoneCum = Math.max(lastCum + seg.target, elapsed); // can't finish the current segment in the past
-    projKitava = wallAt(nextDoneCum + MILESTONES[KITAVA_IDX][S.pace] - next[S.pace]);
+    projKitava = wallAt(nextDoneCum + paceAt(MILESTONES[KITAVA_IDX]) - paceAt(next));
   }
   return { k, last, next, elapsed, deltas, seg, projKitava, lastTs, paused: isPaused() };
 }
@@ -284,23 +294,7 @@ function barMode() {
   if (c.build === 'Spectre Necromancer' && typeof BUILD_PLAN !== 'undefined') return BUILD_PLAN.bar;
   return (BUILDS.find((b) => b.name === c.build) || BUILDS[0]).bar;
 }
-function gateCheck(g) {
-  const d = C().def, bar = barMode(), fails = [];
-  const needBlock = g.block && (BUILDS.find((b) => b.name === C().build) || {}).spellBlock;
-  if (d.resStale) fails.push('res from before Kitava: re-enter');
-  else if (!d.ele) fails.push(resKnown(d) && uncappedList(d).length ? 'uncapped: ' + uncappedList(d).join(', ') : 'ele res not capped');
-  if (g.overcap && !d.over) fails.push('no ~10% overcap');
-  if (d.chaos == null || d.chaos < g.chaos) fails.push(`chaos ${d.chaos ?? '?'} < ${g.chaos}`);
-  const pool = typeof g.pool === 'object' ? g.pool[bar] : g.pool;
-  if (d.pool == null || d.pool < pool) fails.push(`pool ${d.pool ?? '?'} < ${pool}`);
-  // v3: phys max hit and PoB EHP are no longer gates (playtest: not useful as typed numbers).
-  // TODO(EHP): compute an EHP the way PoB does (pool, armour/evasion, block, res, per-type max hit) and gate on that.
-  const ehp = 0;
-  if (needBlock && (d.block == null || d.block < g.block)) fails.push(`spell block ${d.block ?? '?'} < ${g.block}%`);
-  return { pass: !fails.length, fails, ehpReq: ehp };
-}
-function clearedIdx() { let i = -1; for (const g of GATES) { if (gateCheck(g).pass) i++; else break; } return i; }
-function maxTierCleared() { const i = clearedIdx(); return i < 0 ? 0 : i === 0 ? 5 : i === 1 ? 10 : i === 2 ? 14 : 16; }
+/* gateCheck / clearedIdx / maxTierCleared: config.js (per-character tiers) */
 
 /* ---------- Fates ---------- */
 function fateCalc(boss, content, tier, flags) {
@@ -315,7 +309,7 @@ function fateCalc(boss, content, tier, flags) {
     return { cap, why, dup };
   }
   if (content === 'pinnacle') {
-    const need = 5000, pool = C().def.pool || 0;   // TODO(EHP): use a PoB-style EHP here instead of the pool
+    const need = 5000, pool = effPool() || 0;   // TODO(EHP): use a PoB-style EHP here instead of the pool
     const ok = killed && pool >= need && cl >= 2;
     why.push(ok ? `Grim Fate OK: plain version killed on this char and pool ${pool} ≥ ${need}.` : `Grim Fate NO (F03): needs a plain kill on this char${killed ? ' ✓' : ' ✗'} and pool ≥ ${need} (${pool || '?'}).`);
     if (flags.isNew) why.push('Unknown pinnacle: 0 Fates and a portal-ready first attempt.');
@@ -324,8 +318,8 @@ function fateCalc(boss, content, tier, flags) {
   }
   const t = Math.max(1, Math.min(17, tier || 1));
   const gi = t >= 11 ? 2 : t >= 6 ? 1 : 0;
-  if (cl < gi) { why.push(`Not cleared for T${t}: you meet ${cl < 0 ? 'no gate' : GATES[cl].name} only. 0 Fates, fix gear first.`); return { cap: 0, why, dup }; }
-  cap = GATES[gi].fateCap; why.push(`T${t} band cap: ${cap}.`);
+  if (cl < gi) { why.push(`Not cleared for T${t}: you meet ${cl < 0 ? 'no gate' : tiers()[cl].name} only. 0 Fates, fix gear first.`); return { cap: 0, why, dup }; }
+  cap = tiers()[gi].fateCap; why.push(`T${t} band cap: ${cap}.`);
   if (flags.isNew) { why.push('New 3.30 / unknown boss: 0 Fates (F02).'); return { cap: 0, why, dup }; }
   if (flags.deified && t < 11) { why.push('Deified area below T11: never combine with Fates (F04).'); return { cap: 0, why, dup }; }
   if (!killed) {
@@ -346,8 +340,9 @@ function buildTasks(budget) {
   const add = (prio, mins, title, detail = '', chunk = null) => tasks.push({ prio, mins, title, detail, chunk });
   const hour = new Date(t).getHours();
   if (!c.alive) add(0, 0, 'Character died: reroll', evalCond(trigById.E02 || { id: 'E02' }).note + ' Use “New character” below when ready.');
-  if (nearDeaths30() >= 2) add(0, 0, 'Stop for the night (S03)', '2 near-deaths within 30 min. Stash insurance items, log stats, log off.');
-  else if (p && hour < 5 && t - c.campaign.start < 12 * 60 * MIN) add(0, 0, 'Midnight hard stop (S03)', 'Stash insurance items, write down life/ES/res/chaos, log off.');
+  const rt = ruleTasks(); for (const r of rt) add(0, 0, r.title, r.detail);
+  if (!c.campaign.done.M4 && missedTrials().length) add(1, 5, `Missed lab trial${missedTrials().length > 1 ? 's' : ''}: ${missedTrials().map((t) => t.name).join(', ')}`, 'Go back before the Normal lab: it needs all six trials (waypoint, run to the trial, log out).');
+  if (rt.length) { /* a rule already says stop */ } else if (p && hour < 5 && t - c.campaign.start < 12 * 60 * MIN) add(0, 0, 'Midnight hard stop (S03)', 'Stash insurance items, write down life/ES/res/chaos, log off.');
   // Open P1 trigger actions (deduped by trigger, newest wins; skipped when the condition is known unmet).
   const seenIds = new Set(), openP1 = [];
   for (const e of S.log) {
@@ -366,13 +361,13 @@ function buildTasks(budget) {
   if (!c.campaign.start) add(1, 0, 'Start the league timer', 'Launch is Fri Nov 13, 2:00 PM ET. Plan A: Spectre Necromancer, Absolution bridge (H01).');
   else if (p && p.k <= KITAVA_IDX + 2 && p.next) {
     const st = nextStop(p.k);
-    add(1, Math.max(1, Math.round(p.seg.target - p.seg.elapsed / MIN)), `Next: ${p.next.label}`, `Target ${fmtClock(wallAt(p.next[S.pace]))} (${PACE_NAMES[S.pace]}). Gate: ${p.next.gate}${p.next.risk ? ' · ' + p.next.risk : ''}${st ? ` · Then ${st.stop.title}` : ''}`);
+    add(1, Math.max(1, Math.round(p.seg.target - p.seg.elapsed / MIN)), `Next: ${p.next.label}`, `Target ${fmtClock(wallAt(paceAt(p.next)))} (${PACE_NAMES[S.pace]}, ${paceLabel()}). Gate: ${p.next.gate}${p.next.risk ? ' · ' + p.next.risk : ''}${st ? ` · Then ${st.stop.title}` : ''}`);
   }
   const inMaps = !!c.campaign.done.M13 || c.band > 0;
   if (inMaps) {
     const d = c.def, cl = clearedIdx();
     if (!d.updated || t - d.updated > 20 * 60 * MIN) add(2, 2, 'Update your defense numbers', 'Enter res / chaos / pool / block so gates and Fate caps are right.');
-    const nextGate = GATES[cl + 1];
+    const nextGate = tiers()[cl + 1];
     if (nextGate) {
       const g = gateCheck(nextGate);
       if (!C().def.ele) { add(2, 10, CHUNKS.W4.title, `Res not capped. Needed for ${nextGate.name}.`, 'W4'); add(2, 15, CHUNKS.W5.title, 'Or essence-craft the slot.', 'W5'); }
@@ -381,7 +376,7 @@ function buildTasks(budget) {
     }
     const day = c.campaign.start ? Math.floor((t - c.campaign.start) / (1440 * MIN)) + 1 : 1;
     if (day <= 7) add(2, 10, CHUNKS.W9.title, `League day ${day}. Watch for Fate reports and poedb drop sources.`, 'W9');
-    const fc = cl >= 0 ? GATES[Math.min(cl, 2)].fateCap : 0;
+    const fc = cl >= 0 ? tiers()[cl].fateCap : 0;
     if (cl >= 0) add(3, budget <= 15 ? 15 : 30, budget <= 15 ? CHUNKS.W1.short : CHUNKS.W1.title, `Cleared up to T${maxTierCleared()}. Fates: up to ${fc} per the Fates panel.`, 'W1');
     if (c.build === 'Spectre Necromancer' && !S.log.some((l) => l.char === c.created && l.ids.includes('N01'))) add(2, budget <= 15 ? 15 : 30, budget <= 15 ? CHUNKS.W11.short : CHUNKS.W11.title, 'No Frostbearers logged yet. Ore/Verisium atlas nodes on (N13). Unsocket Bone Offering at the ore.', 'W11');
     if (c.build === 'Spectre Necromancer') add(3, 10, CHUNKS.W12.title, 'Targets: eff. 21 (T6), 22 + 3 spectres (T11), 25 (T15).', 'W12');
@@ -407,12 +402,7 @@ function buildTasks(budget) {
 /* ---------- Stage helpers (links and tree: links.js) ---------- */
 function curAct() { const d = C().campaign.done; if (d.M13 || C().band > 0) return 11; for (let a = 1; a <= 10; a++) if (!d[ACT_MS[a]]) return a; return 11; }
 function hasFrost() { return S.log.some((l) => l.char === C().created && l.ids.includes('N01')); }
-/* Pool colour rule (user request): green when life+ES > 300 x act (Act 1 = 300 ... Act 10 = 3000), 3000 at map start, 5000 from T6 (yellow). */
-function poolTarget() {
-  const c = C(), a = curAct();
-  if (a <= 10) return { v: 300 * a, why: 'Act ' + a + ': 300 × act' };
-  return (c.band || 0) >= 6 ? { v: 5000, why: 'T6+ yellow maps' } : { v: 3000, why: 'map start' };
-}
+/* poolTarget(): config.js (300 × act, then the Map entry / T6+ pools) */
 function stateSummary() {
   const c = C(), d = c.def, st = BCFG ? stageAuto() : null;
   return { build: c.build, level: c.level, act: curAct() > 10 ? 'maps' : curAct(), stage: st ? stageTitle(st) : '', links_now: BCFG ? mainGemsNow() : [],

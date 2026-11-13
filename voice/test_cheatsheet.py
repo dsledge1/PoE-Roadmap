@@ -28,9 +28,13 @@ CASES = [
     ("going to try Merveil with 1 fate", "fate_attempt", {"fates": 1}), ("killed Brutus with one fate", "kill", {"boss": "Brutus", "fates": 1}),
     ("add chase item Shavronne's Wrappings from Delve", "chase", {"op": "add", "content": "Delve"}), ("chase done Darkness Enthroned", "chase", {"op": "done"}),
     ("what's left on my chase", "query", {"what": "chase"}),
-    ("research Desecrate", "research", {}), ("look up Bones of Ullr", "research", {"query": "Bones of Ullr"}), ("wiki Forged Frostbearer", "research", {}),
+    ("research Desecrate", "research", {}), ("look up Bones of Ullr", "research", {"query": "Bones of Ullr"}), ("wiki Forged Frostbearer", "wiki_link", {"query": "Forged Frostbearer"}),
     ("where does the Cane of Kulemak drop", "query", {"what": "drop_where"}), ("vendor recipe for a physical weapon", "research", {"topic": "recipe"}),
     ("any news on Fates?", "query", {"what": "news"}), ("yes", "yes", {}),
+    # v5
+    ("set pace alt", "pace_cfg", {"preset": "alt"}), ("pace target 4 hours", "pace_cfg", {"total": 240}), ("bigger text", "text_size", {"step": 1}), ("smaller text", "text_size", {"step": -1}),
+    ("what am I watching for in abyss", "query", {"what": "chase", "content": "abyss", "watch": True}), ("chase for abyss", "query", {"what": "chase", "content": "abyss", "watch": True}),
+    ("get wiki link for Darkness Enthroned", "wiki_link", {"query": "Darkness Enthroned"}),
     ("undo", "undo", {}), ("never mind", "undo", {}), ("repeat that", "local", {"what": "repeat"}), ("mute", "local", {"what": "mute"}), ("unmute", "local", {"what": "unmute"}),
 ]
 

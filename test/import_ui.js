@@ -23,14 +23,18 @@ const file = (name, text) => { const p = ENV.tmp(name); fs.writeFileSync(p, text
     await page.click('#btnOwnPob');
     // ---- labels, helpers, accept attributes, guide link
     assert(/Accepts: PoB export code, pobb\.in or poe\.ninja\/pob link, or \.xml file/.test(await txt('#pobAccepts')), 'PoB import says what it accepts');
-    assert(/Import profile accepts: \.json profile exported from this tracker/.test(await txt('#profileAccepts')), 'profile import says what it accepts');
+    assert(/Restore backup takes only a \.json backup made with Download backup/.test(await page.locator('#restoreAccepts').textContent()), 'restore says what it accepts');
     assert(await page.getAttribute('#filePob', 'accept') === '.xml,text/xml,application/xml', 'PoB file picker accept = .xml');
-    assert(await page.getAttribute('#fileProfile', 'accept') === '.json,application/json', 'profile picker accept = .json');
-    assert(await page.getAttribute('#fileBcfg', 'accept') === '.json,application/json', 'build config picker accept = .json');
-    assert((await txt('#btnPobImport')) === 'Import PoB' && (await txt('#btnPobFile')) === 'Choose .xml file' && (await txt('#btnProfileImport')) === 'Import profile (.json)', 'button labels name the input');
+    assert(await page.getAttribute('#fileRestore', 'accept') === '.json,application/json', 'restore picker accept = .json');
+    assert(!(await page.$('#fileProfile')) && !(await page.$('#fileBcfg')) && !(await page.$('#fileTrig')) && !(await page.$('#fileState')), 'v5: no user-facing JSON imports (profile, build config, triggers, log) remain');
+    assert((await txt('#btnPobImport')) === 'Import PoB build' && (await txt('#btnPobFile')) === 'Choose .xml file…' && (await page.locator('#btnRestore').textContent()) === 'Restore backup (.json)…', 'button labels name the input');
+    for (const id of ['btnHdrPob', 'btnOwnPob', 'btnPobImport', 'btnPobFile', 'btnBackup', 'btnBackup2', 'btnRestore'])
+      assert(/\.xml|\.json|PoB export code/.test(await page.getAttribute('#' + id, 'title') || ''), `#${id} tooltip names the file type`);
+    assert(await page.isVisible('#btnHdrPob') && /pri/.test(await page.getAttribute('#btnHdrPob', 'class')), 'Import PoB build is the prominent header button');
+    assert(!(await page.isVisible('#btnRestore')), 'restore is tucked under Advanced (hidden until opened)');
     const hrefs = await page.$$eval('a[href$="docs/POB_GUIDE.md"]', (as) => as.map((a) => a.closest('#pobImport,#charsec') && a.closest('#pobImport,#charsec').id));
     assert(hrefs.includes('pobImport') && hrefs.includes('charsec'), 'PoB guide linked under both controls');
-    assert(/PoB export code, pobb\.in or poe\.ninja\/pob link/.test(await page.getAttribute('#btnOwnPob', 'title')), '“Use my own PoB” tooltip names the inputs');
+    assert(/PoB export code, pobb\.in or poe\.ninja\/pob link/.test(await page.getAttribute('#btnOwnPob', 'title')), '“Import PoB build” tooltip names the inputs');
 
     // ---- wrong files on the PoB import
     const profile = await page.evaluate(() => JSON.stringify(profileObj()));
@@ -38,9 +42,9 @@ const file = (name, text) => { const p = ENV.tmp(name); fs.writeFileSync(p, text
     await timed(() => page.setInputFiles('#filePob', file('my_profile.json', profile)));
     await page.waitForFunction(() => /JSON/.test(document.getElementById('pobStatus').innerText));
     let s = await txt('#pobStatus');
-    assert(/That's JSON, not a Path of Building build/.test(s) && /Character → Import profile/.test(s), '.json profile on the PoB import → points to Import profile: ' + s);
+    assert(/That's JSON, not a Path of Building build/.test(s) && /Restore backup/.test(s), '.json profile on the PoB import → points to Restore backup: ' + s);
     await timed(() => page.setInputFiles('#filePob', file('cfg.json', bcfg))); await sleep(50);
-    assert(/Load build config/.test(await txt('#pobStatus')), '.json build config on the PoB import → points to Load build config');
+    assert(/import the PoB build itself/.test(await txt('#pobStatus')), '.json build config on the PoB import → says to import the PoB itself');
     await timed(() => page.setInputFiles('#filePob', file('notes.txt', 'hello'))); await sleep(50);
     assert(/A \.txt file can't be imported as a PoB/.test(await txt('#pobStatus')), '.txt on the PoB import → friendly error');
     await timed(() => page.setInputFiles('#filePob', file('other.xml', '<?xml version="1.0"?><svg></svg>'))); await sleep(50);
@@ -65,24 +69,28 @@ const file = (name, text) => { const p = ENV.tmp(name); fs.writeFileSync(p, text
     await sleep(100);
     assert(/That's JSON/.test(await txt('#pobStatus')), 'dropped .json on the PoB import → friendly error');
 
-    // ---- wrong files on the profile import
-    await timed(() => page.setInputFiles('#fileProfile', file('build.xml', XML))); await sleep(50);
-    s = await txt('#profileStatus');
-    assert(/That's a \.xml file, probably a Path of Building build/.test(s) && /Use my own PoB/.test(s), '.xml on the profile import → points to Use my own PoB: ' + s);
-    await timed(() => page.setInputFiles('#fileProfile', file('cfg2.json', bcfg))); await sleep(50);
-    assert(/isn't a tracker profile/.test(await txt('#profileStatus')) && /Load build config/.test(await txt('#profileStatus')), 'build config on the profile import → points to Load build config');
+    // ---- wrong files on Restore backup (Advanced)
+    await page.click('#advBox > summary');
+    await timed(() => page.setInputFiles('#fileRestore', file('build.xml', XML))); await sleep(50);
+    s = await txt('#restoreStatus');
+    assert(/That's a \.xml file, probably a Path of Building build/.test(s) && /Import PoB build/.test(s), '.xml on Restore → points to Import PoB build: ' + s);
+    await timed(() => page.setInputFiles('#fileRestore', file('cfg2.json', bcfg))); await sleep(50);
+    assert(/old build config file/.test(await txt('#restoreStatus')) && /Import PoB build/.test(await txt('#restoreStatus')), 'old build config on Restore → points to Import PoB build');
+    await timed(() => page.setInputFiles('#fileRestore', file('trig.json', JSON.stringify({ triggers: [] })))); await sleep(50);
+    assert(/triggers file/.test(await txt('#restoreStatus')), 'triggers file on Restore → friendly message');
+    await timed(() => page.setInputFiles('#fileRestore', file('broken.json', '{"kind": "profile",'))); await sleep(50);
+    assert(/isn't valid JSON/.test(await txt('#restoreStatus')), 'broken JSON → friendly error');
+    await timed(() => page.setInputFiles('#fileRestore', file('code.txt', code))); await sleep(50);
+    assert(/A \.txt file can't be restored/.test(await txt('#restoreStatus')), '.txt on Restore → friendly error');
+    // ---- a v4 profile file and a v5 backup still restore
+    await timed(() => page.setInputFiles('#fileRestore', file('good_profile.json', profile))); await sleep(100);
+    assert((await txt('#restoreStatus')) === '' && /Profile restored/.test(await txt('#toast')), 'a v4 profile still restores and clears the message');
     const backup = await page.evaluate(() => JSON.stringify(exportObj()));
-    await timed(() => page.setInputFiles('#fileProfile', file('backup.json', backup))); await sleep(50);
-    assert(/Import log/.test(await txt('#profileStatus')), 'full backup on the profile import → points to Import log');
-    await timed(() => page.setInputFiles('#fileProfile', file('broken.json', '{"kind": "profile",'))); await sleep(50);
-    assert(/isn't valid JSON/.test(await txt('#profileStatus')), 'broken JSON → friendly error');
-    await timed(() => page.setInputFiles('#fileProfile', file('code.txt', code))); await sleep(50);
-    assert(/A \.txt file can't be loaded here/.test(await txt('#profileStatus')), '.txt on the profile import → friendly error');
-    await timed(() => page.setInputFiles('#fileBcfg', file('build2.xml', XML))); await sleep(50);
-    assert(/Use my own PoB/.test(await txt('#pobStatus')), '.xml on Load build config → points to Use my own PoB');
-    // ---- the right profile still loads
-    await timed(() => page.setInputFiles('#fileProfile', file('good_profile.json', profile))); await sleep(100);
-    assert((await txt('#profileStatus')) === '' && /Profile loaded/.test(await txt('#toast')), 'a real profile still imports and clears the message');
+    assert(JSON.parse(backup).buildCfg && JSON.parse(backup).kind === 'backup', 'backup carries the build config');
+    await timed(() => page.setInputFiles('#fileRestore', file('backup.json', backup))); await sleep(100);
+    assert(/Backup restored/.test(await txt('#toast')), 'a v5 backup restores');
+    const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnBackup')]);
+    assert(/^poe_tracker_backup_.*\.json$/.test(dl.suggestedFilename()), 'Download backup saves a .json → ' + dl.suggestedFilename());
 
     // ---- through the companion: a .xml file picked in Links & tree really imports
     const PORT = 8794;
@@ -93,7 +101,7 @@ const file = (name, text) => { const p = ENV.tmp(name); fs.writeFileSync(p, text
     await page.goto(`http://127.0.0.1:${PORT}/`); await page.waitForFunction(() => VOICE.served, null, { timeout: 8000 });
     await page.click('#btnOwnPob');
     await page.setInputFiles('#filePob', file('example_pob.xml', XML));
-    await page.waitForFunction(() => /Build imported|Necromancer \(PoB\)/.test(document.getElementById('pobStatus').innerText + document.getElementById('toast').innerText), null, { timeout: 8000 });
+    await page.waitForFunction(() => /Imported\.|PoB build imported/.test(document.getElementById('pobStatus').innerText + document.getElementById('toast').innerText), null, { timeout: 8000 });
     const got = await page.evaluate(() => ({ n: BCFG.sets.length, a5: BCFG.sets[BCFG.stages.A5.variants[0].set].clean }));
     assert(got.n === 5 && got.a5 === 'Act 3-10', 'served: example .xml imports (5 skill sets; Act 5 uses “Act 3-10”) → ' + JSON.stringify(got));
 

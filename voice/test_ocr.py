@@ -63,7 +63,7 @@ BOXES = [
 ]
 
 CASES = [
-    ("poe sheet", POE_SHEET, {"level": 34, "life": 1412, "mana": 412, "es": 186, "armour": 512, "evasion": 233, "ablock": 0, "block": 9, "fire": 52, "cold": 75, "lightning": 61, "chaos": -30}, {"cold": 81}),
+    ("poe sheet", POE_SHEET, {"level": 34, "life": 1412, "mana": 412, "es": 186, "armour": 512, "evasion": 233, "pdr": 6, "ablock": 0, "block": 9, "fire": 52, "cold": 75, "lightning": 61, "chaos": -30}, {"cold": 81}),
     ("poe noisy", POE_NOISY, {"level": 68, "life": 4213, "es": 740, "block": 60, "fire": 75, "cold": 75, "lightning": 75, "chaos": 31}, {"fire": 90, "cold": 83, "lightning": 76}),
     # v3: EHP / phys max hit are no longer read (removed from the Defense panel); attack block is
     ("pob sidebar", POB, {"life": 4243, "es": 740, "mana": 1018, "fire": 75, "cold": 75, "lightning": 75, "chaos": 68, "block": 60, "ablock": 60}, {"fire": 87, "cold": 82, "lightning": 78}),
@@ -91,7 +91,17 @@ def test_ocr_parser():
 
 # ---- image stage (needs Pillow + rapidocr-onnxruntime; Windows OCR is tested on a Windows PC with --ocr-selftest windows)
 REAL = os.environ.get("POE_OCR_REAL_SAMPLE", "")   # optional: a real Defences-tab screenshot of yours (never committed)
-REAL_WANT = {"life": 93, "mana": 128, "armour": 31, "evasion": 40, "fire": 0, "cold": 9, "lightning": 9, "chaos": 0, "ablock": 20}
+REAL_WANT = {"level": 4, "life": 93, "mana": 128, "armour": 31, "evasion": 40, "fire": 0, "cold": 9, "lightning": 9, "chaos": 0, "ablock": 20}
+
+
+def _first(*paths):
+    import os
+    return next((p for p in paths if os.path.exists(p)), None)
+
+
+LV4 = _first(os.environ.get("POE_OCR_LV4", ""))
+LV97 = _first(os.environ.get("POE_OCR_LV97", ""))
+LV97_WANT = {"level": 97, "life": 1317, "mana": 833, "es": 1308, "fire": -60, "cold": 18, "lightning": 75, "chaos": -60, "ablock": 25}
 
 
 def run_images():
@@ -138,6 +148,49 @@ def run_images():
         f = r["fields"]; diff = {k: (f.get(k), v) for k, v in REAL_WANT.items() if f.get(k) != v}
         good = not diff
         print(f"{'ok  ' if good else 'FAIL'} real Defences screenshot ({1000 * (time.perf_counter() - t):.0f} ms) {f} {'' if good else diff}"); ok += good
+    # v5.1: character level from the round badge on the portrait (no "Level" word on screen)
+    for lv, dfn in ((97, True), (4, False), (4, True), (1, False), (13, False), (68, True), (100, False)):
+        img, want = ocr.synthetic_header_image(lv, with_defences=dfn)
+        n += 1; t = time.perf_counter(); r = ocr.read_defences(img, "rapidocr")
+        diff = {k: (r["fields"].get(k), v) for k, v in want.items() if r["fields"].get(k) != v}
+        good = not diff
+        print(f"{'ok  ' if good else 'FAIL'} level badge {lv}{' + defences' if dfn else ' (header only)'} ({1000 * (time.perf_counter() - t):.0f} ms, {r.get('level_from')}) {'' if good else diff}"); ok += good
+    # no header on screen -> never a guessed level (synthetic Defences image)
+    img, _ = ocr.synthetic_defences_image()
+    n += 1; r = ocr.read_defences(img, "rapidocr"); good = "level" not in r["fields"]
+    print(f"{'ok  ' if good else 'FAIL'} no panel header -> no level guessed {r['fields'].get('level')}"); ok += good
+    # Windows OCR (can't run on the box) that reads the header but not the lone digit: auto adds the rapidocr crop pass
+    real_win = ocr.windows_ocr_boxes
+    img4, _ = ocr.synthetic_header_image(4, with_defences=False)
+    def header_only(_img):
+        return [("Exiledemo", 126, 46, 120, 20), ("Lioneye's Watch", 150, 78, 110, 15), ("Life", 128, 122, 28, 15), ("1317", 330, 122, 32, 15),
+                ("Mana", 128, 144, 36, 15), ("833", 330, 144, 26, 15)]
+    ocr.windows_ocr_boxes = header_only
+    try:
+        n += 1; r = ocr.read_defences(img4, "auto")
+        good = r["fields"].get("level") == 4 and r.get("level_from") in ("badge-crop", "badge-crop-rapidocr")
+        print(f"{'ok  ' if good else 'FAIL'} windows misses the lone digit -> rapidocr crop pass reads 4: {r['fields']} {r.get('level_from')}"); ok += good
+    finally:
+        ocr.windows_ocr_boxes = real_win
+    # the badge picker on word boxes alone (engine-free)
+    bx = [("CHARACTER", 261, 55, 128, 18), ("Exiledemo", 130, 114, 193, 22), ("Karui Shores", 155, 145, 86, 18), ("Life", 127, 185, 29, 18),
+          ("1317", 334, 188, 27, 15), ("Mana", 127, 208, 42, 17), ("833", 334, 208, 27, 17), ("113", 464, 222, 26, 20), ("97", 52, 244, 31, 24)]
+    no_hdr = [("Life", 11, 12, 30, 11), ("93", 470, 12, 18, 11), ("Mana", 11, 34, 36, 11), ("4", 3, 60, 8, 11)]   # Life at the left edge, nothing above
+    cls = [("Exiledemo", 140, 36, 120, 22), ("Necromancer", 140, 72, 102, 16), ("97", 18, 110, 20, 16)]
+    n += 1; good = ocr.level_from_boxes(bx) == 97 and ocr.level_from_boxes([b for b in bx if b[0] != "97"]) is None and ocr.level_from_boxes(no_hdr) is None \
+        and ocr.level_from_boxes(cls) == 97 and ocr.level_from_boxes([("97", 52, 244, 31, 24)]) is None and ocr.level_from_boxes(bx[3:]) is None
+    print(f"{'ok  ' if good else 'FAIL'} badge picker: number under the portrait, left of Life/Mana; none without the header; strength/int numbers ignored"); ok += good
+    n += 1; good = ocr._badge_text("１００") == 100 and ocr._badge_text("101") is None and ocr._badge_text("0") is None and ocr._badge_text("(9)") == 9
+    print(f"{'ok  ' if good else 'FAIL'} badge number sanity: 1-100 only, full-width digits normalised"); ok += good
+    # optional real Character-panel screenshots (POE_OCR_LV4 / POE_OCR_LV97, never committed): level 4 header, level 97 full panel
+    for path, want in ((LV4, {"level": 4}), (LV97, LV97_WANT)):
+        if not path:
+            print("skip  (screenshot not on this machine)", want.get("level")); continue
+        im = Image.open(path)
+        n += 1; t = time.perf_counter(); r = ocr.read_defences(im, "rapidocr", region="left" if im.width >= 1600 and im.width > im.height else None)
+        f = r["fields"]; diff = {k: (f.get(k), v) for k, v in want.items() if f.get(k) != v}
+        good = not diff
+        print(f"{'ok  ' if good else 'FAIL'} real Character panel, level {want['level']} ({1000 * (time.perf_counter() - t):.0f} ms, {r.get('level_from')}) {f} {'' if good else diff}"); ok += good
     print(f"ocr image stage: {ok}/{n}")
     return ok == n
 

@@ -151,6 +151,8 @@ const assert = (c, m) => { if (!c) { throw new Error('ASSERT: ' + m); } console.
   assert(/target &gt; 3000/.test(await page.innerHTML('#poolTarget')), 'pool target 3000 at map start');
   lat.push(await timed('type pool', () => page.fill('#dPool', '4800')));
   await page.check('#dOver'); await page.fill('#dChaos', '35');
+  assert(/T1–5/.test(await txt('#clearedFor')), 'v5.2: T6+ default pool is 5000 (the 5000-at-T6 rule), 4800 is short');
+  await page.fill('#dPool', '5200');
   assert(/Cleared for T6–10/.test(await txt('#clearedFor')), 'T6 gate passes without a max-hit number');
   await page.fill('#dChaos', '65'); await page.fill('#dPool', '6500'); await page.fill('#dBlock', '40');
   assert(/T6–10/.test(await txt('#clearedFor')), 'T11 blocked at 40% spell block');
@@ -189,31 +191,20 @@ const assert = (c, m) => { if (!c) { throw new Error('ASSERT: ' + m); } console.
   assert(/act|maps/i.test(await txt('#linkHead')), 'links panel survives reload → ' + await txt('#linkHead'));
   assert((await page.locator('#logList .logitem').count()) > 5, 'log persists');
 
-  // Export / import triggers
-  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnExport')]);
+  // v5: Download backup / Restore backup (the only JSON in or out; triggers / log imports are gone)
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#btnBackup')]);
   const exp = JSON.parse(require('fs').readFileSync(await dl.path(), 'utf8'));
-  assert(exp.state && exp.state.log.length > 5 && exp.triggersInUse.triggers.length === 58, 'export JSON has state + 58 triggers');
-  const newTrig = JSON.parse(require('fs').readFileSync(ENV.root('data', 'triggers.json'), 'utf8'));
-  newTrig.updated = 'TEST'; newTrig.triggers.push({ id: 'X99', type: 'drop', item: 'Headhunter', condition: 'always', action: 'Celebrate', priority: 1, hard: false });
-  require('fs').writeFileSync(ENV.tmp('trig_test.json'), JSON.stringify(newTrig));
-  await page.setInputFiles('#fileTrig', ENV.tmp('trig_test.json'));
-  await page.waitForTimeout(100);
-  assert(/59 \(imported/.test(await txt('#trigInfo')), 'trigger import → 59 imported');
-  r = await log('Headhunter');
-  assert(/Celebrate/.test(r), 'imported trigger matches');
-  await page.click('#btnResetTrig');
-  assert(/58 \(embedded/.test(await txt('#trigInfo')), 'reset to embedded triggers');
-  require('fs').writeFileSync(ENV.tmp('bad.json'), '{"foo":1}');
-  await page.setInputFiles('#fileTrig', ENV.tmp('bad.json'));
-  await page.waitForTimeout(100);
-  assert(/Import failed/.test(await txt('#toast')), 'bad triggers file rejected');
-
-  // State import roundtrip
+  assert(exp.kind === 'backup' && exp.state && exp.state.log.length > 5 && exp.triggersInUse.triggers.length === 58 && exp.buildCfg, 'backup JSON has state + 58 triggers + build');
+  assert(!(await page.$('#fileTrig')) && !(await page.$('#fileState')) && !(await page.$('#btnExport')), 'old triggers / log import and export buttons are gone');
+  assert(/58 \(built in/.test(await page.locator('#trigInfo').textContent()), 'embedded triggers in use');
   page.on('dialog', (d) => d.accept());
+  const nLog = exp.state.log.length;
+  await page.click('#advBox > summary');
+  await page.click('#btnFreshProfile').catch(() => {});
   require('fs').writeFileSync(ENV.tmp('state.json'), JSON.stringify(exp));
-  await page.setInputFiles('#fileState', ENV.tmp('state.json'));
-  await page.waitForTimeout(100);
-  assert(/Log imported/.test(await txt('#toast')), 'state import works');
+  await page.setInputFiles('#fileRestore', ENV.tmp('state.json'));
+  await page.waitForTimeout(150);
+  assert(/Backup restored/.test(await txt('#toast')) && (await page.evaluate(() => S.log.length)) === nLog, 'backup restore round-trips the log');
 
   // Necro minion bar: lower life gates, block required at T11
   await page.selectOption('#cBuild', 'Spectre Necromancer');

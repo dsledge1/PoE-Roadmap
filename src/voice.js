@@ -25,6 +25,7 @@ function onVoiceMsg(m) {
   else if (m.type === 'status') setVoiceState(m.state === 'idle' ? 'ready' : m.state);
   else if (m.type === 'transcript') { VOICE.heard = m.text; renderVoice(); }
   else if (m.type === 'command') applyVoiceCommand(m);
+  else if (m.type === 'wiki_pending') { WIKI.pending = m.query || ''; WIKI.status = ''; renderWiki(); }
 }
 function setVoiceState(st) { VOICE.state = st; renderVoiceStatus(); }
 
@@ -48,7 +49,7 @@ function spokenAction(t, ev) {
   return s ? s[0].toUpperCase() + s.slice(1) : '';
 }
 function spokenDelta(d) { const m = Math.round(d); return m === 0 ? 'on pace' : m < 0 ? `${-m} minutes ahead` : `${m} minutes behind`; }
-const bandWords = (i) => (i < 0 ? 'not cleared for maps' : 'cleared for ' + GATES[i].band.replace('–', ' to ').replace(/\s*\/.*$/, ''));
+const bandWords = (i) => (i < 0 ? 'not cleared for maps' : 'cleared for ' + tiers()[i].band.replace('–', ' to ').replace(/\s*\/.*$/, ''));
 const SPOKEN_MS = { M1: 'Act 1', M2: 'Act 2', M3: 'Act 3', M4: 'Normal lab', M5: 'Act 4', M6: 'Act 5 Kitava', M7: 'Act 6', M8: 'Act 7', M9: 'Act 8', M10: 'Act 9', M11: 'Staff and skill point', M12: 'Cruel lab', M13: 'Act 10 Kitava', M14: 'Merciless lab', M15: 'Maps' };
 const shortLabel = (m) => SPOKEN_MS[m.id] || m.label.replace(/\s*\(.*\)/, '');
 
@@ -142,7 +143,7 @@ function applyDefs(set, inv, opts = {}) {
   const NAMES = { ablock: 'Attack block', block: 'Spell block' };
   const misc = ['ablock', 'block'].filter((k) => set[k] != null);
   if (misc.length) { for (const k of misc) d[k] = set[k]; parts.push(misc.map((k) => `${NAMES[k]} ${set[k]}`).join(', ') + '.'); }
-  for (const k of ['mana', 'armour', 'evasion']) if (set[k] != null) d[k] = set[k];   // kept for the future PoB-style EHP (TODO)
+  for (const k of ['mana', 'armour', 'evasion', 'evade', 'suppress', 'pdr']) if (set[k] != null) d[k] = set[k];   // v5.2: shown / checked when on in Configure
   d.updated = now();
   save(); renderAll();
   const after = clearedIdx();
@@ -163,20 +164,31 @@ function applyAction(a, inv, cmd = {}) {
       }
       const e = addLog(text, kind, { type, detail: a.detail || (type ? a.text : '') });
       inv.push({ k: 'log', id: e.id, prev, seenLen });
+      const more = (r) => { const x = [e.typeSay, ruleSay(e, r.say)].filter(Boolean).join(' '); if (x) r.say = (r.say + ' ' + x).trim(); return r; };   // v5.2: type "also say", rules
       if (e.sameIncident) return { say: 'Near death logged, same incident as a moment ago.' };
+      if (e.typeOff) return { say: `Noted. ${e.typeOff} is turned off in Configure.`, level: 'unknown' };
       if (!e.ids.length) {
-        if (e.kind === 'note') return { say: 'Noted.', level: 'unknown' };
+        if (e.kind === 'note') return more({ say: 'Noted.', level: 'unknown' });
         if (a.match && a.match.confidence === 'low') return { say: `Did you mean ${a.match.name}?`, level: 'unknown' };
-        return { say: `${shortName(e.text)} logged.` };
+        return more({ say: `${shortName(e.text)} logged.` });
       }
       const top = e.ids.map((id) => trigById[id]).sort((x, y) => x.priority - y.priority)[0];
       const name = shortName(e.text);
-      return { say: `${name} logged. ${spokenAction(top, e.evals[top.id])}`, level: top.priority === 1 ? 'p1' : 'ok' };
+      return more({ say: `${name} logged. ${spokenAction(top, e.evals[top.id])}`, level: top.priority === 1 ? 'p1' : 'ok' });
     }
     case 'set_act': return setAct(a, inv);
     case 'custom_type': return applyTypeCmd(a, inv);
     case 'chase': return applyChaseCmd(a, inv);
+    case 'tree_nav': return treeNav(a);   // v5.1: "next tree", "show tree Level 60"
+    case 'pace_cfg': return { say: setPaceCfg(a.preset ? { preset: a.preset } : { total: a.total }, inv) };   // v5
+    case 'text_size': return { say: setTextSize(a, inv) };
+    case 'wiki_link_result': return wikiLinkResult(a, inv);
     case 'yes': return { say: 'Nothing to say yes to.', level: 'unknown' };
+    case 'timer_reset': return timerReset(a, inv);         // v5.3
+    case 'trial': return trialCmd(a, inv);
+    case 'unmark': return unmarkLab(a, inv);
+    case 'area': return areaCmd(a, inv);
+    case 'boss_down': return bossDown(a, inv);
     case 'ocr_notice': {
       const ob = $('ocrBox'); ob.classList.remove('hidden');
       ob.innerHTML = `<span class="bad">${esc(a.text || 'Not the Defences tab.')}</span>${a.fields && Object.keys(a.fields).length ? ` <span class="dim">(read only ${esc(ocrSummary(a.fields))}; nothing to confirm)</span>` : ''}`;
@@ -234,6 +246,7 @@ function applyAction(a, inv, cmd = {}) {
     case 'research_result': {
       const e = { id: uid(), ts: now(), kind: 'research', text: `Research “${a.query}”: ${a.spoken || 'no answer'}`, full: a.full || '', url: a.url || '', title: a.title || '', source: a.source || '', note: a.note || '', ids: [], acked: [], char: c.created };
       S.log.unshift(e); inv.push({ k: 'log', id: e.id, prev: { band: c.band, level: c.level, alive: c.alive }, seenLen: S.fates.seen.length });
+      if (a.url) { const w = addWikiLink({ query: a.query, title: a.title, url: a.url, source: 'research' }); if (w) inv.push({ k: 'wiki', id: w.id }); }   // v5: research pages land in Wiki links too
       return { say: '' }; // the companion speaks the answer itself
     }
     case 'ocr_proposal': {
@@ -244,7 +257,8 @@ function applyAction(a, inv, cmd = {}) {
         const ob = $('ocrBox'); ob.classList.remove('hidden'); ob.innerHTML = '<span class="bad">That\'s the Offence tab, open Defences and press F10 again.</span>';
         return { say: "That's the Offence tab, open Defences and press F10 again.", level: 'unknown' };
       }
-      const few = a.partial || Object.keys(a.fields).length < 4;
+      const onlyLevel = Object.keys(a.fields).length === 1 && a.fields.level != null;   // v5.1: just the panel header (level badge)
+      const few = !onlyLevel && (a.partial || Object.keys(a.fields).length < 4);
       S.ocrPending = { fields: a.fields, uncapped: a.uncapped || null, source: a.source || '', engine: a.engine || '', ts: now(), partial: few };
       if (few) return { say: `That read looks incomplete: only ${ocrSummary(a.fields)}. Check the Defences tab is open. Say confirm to apply anyway, or discard.`, level: 'unknown' };
       return { say: `Screenshot read: ${ocrSummary(a.fields)}. Say confirm to apply, or discard.` };
@@ -262,7 +276,7 @@ function applyAction(a, inv, cmd = {}) {
     default: return { say: '', level: 'unknown' };
   }
 }
-const OCR_NAMES = { level: 'level', fire: 'fire', cold: 'cold', lightning: 'lightning', chaos: 'chaos', life: 'life', es: 'E S', pool: 'pool', block: 'spell block', ablock: 'attack block', mana: 'mana', armour: 'armour', evasion: 'evasion' };
+const OCR_NAMES = { level: 'level', fire: 'fire', cold: 'cold', lightning: 'lightning', chaos: 'chaos', life: 'life', es: 'E S', pool: 'pool', block: 'spell block', ablock: 'attack block', mana: 'mana', armour: 'armour', evasion: 'evasion', evade: 'evade chance', suppress: 'spell suppression', pdr: 'physical damage reduction' };
 const ocrSummary = (f) => Object.entries(f).map(([k, v]) => `${OCR_NAMES[k] || k} ${['fire', 'cold', 'lightning', 'chaos'].includes(k) ? fmtRes(v) : v}`).join(', ');
 
 function answerQuery(a, inv) {
@@ -280,7 +294,7 @@ function answerQuery(a, inv) {
       const topic = String(a.topic || '').trim(), social = /^(x|twitter|reddit|the forums?|discord|news|patch notes?)$/i.test(topic);
       return { say: `I only check poewiki and poedb; I can't read X, Twitter or Reddit. Check pathofexile.com or Reddit yourself for the latest${topic && !social ? ' on ' + topic : ''}.`, level: 'unknown' };
     }
-    case 'chase': return { say: chaseSummary(a.content || '') };
+    case 'chase': return { say: a.watch ? chaseWatch(a.content || '') : chaseSummary(a.content || '') };
     case 'hello': return { say: 'I hear you loud and clear.' };
     case 'res': {
       if (!resKnown(d) && d.chaos == null && !d.ele) return { say: 'No res logged yet. Tell me fire, cold, lightning and chaos, or press the screenshot hotkey on your Defences tab.', level: 'unknown' };
@@ -347,6 +361,9 @@ function voiceUndo(entryId, silent) {
     }
     else if (op.k === 'def') { const { level, ...d } = op.snap; c.def = Object.assign(c.def, d); c.level = level; }
     else if (op.k === 'kill') c.kills = c.kills.filter((k) => k.ts !== op.ts);
+    else if (op.k === 'trials') c.trials = op.prev;
+    else if (op.k === 'area') c.area = op.prev;
+    else if (op.k === 'run') { c.campaign = op.prev; c.runs = (c.runs || []).filter((r) => r.ended !== op.ended); }
     else if (op.k === 'start') c.campaign.start = op.prev;
     else if (op.k === 'pause') { const ps = pauses(); if (ps.length && ps.at(-1).to == null) ps.pop(); }
     else if (op.k === 'resume') { const p = pauses().at(-1); if (p && p.from === op.from) p.to = null; }
@@ -354,6 +371,9 @@ function voiceUndo(entryId, silent) {
     else if (op.k === 'unms') { Object.assign(c.campaign.done, op.prev); c.band = op.band || 0; }
     else if (op.k === 'types') { c.types = op.prev; syncTypes(); }
     else if (op.k === 'chase') { c.chase = op.prev; if (op.prevCt) S.contentTypes = op.prevCt; }
+    else if (op.k === 'pacecfg') S.paceCfg = op.prev;
+    else if (op.k === 'ui') { S.ui = Object.assign(S.ui || {}, op.prev); applyTextSize(); }
+    else if (op.k === 'wiki') S.wikiLinks = (S.wikiLinks || []).filter((w) => w.id !== op.id);
   }
   e.undone = true;
   save(); renderAll();
@@ -367,23 +387,23 @@ function voiceAnswer(what) {
   if (what === 'pace') {
     if (!p) return 'League timer is not running.';
     const pz = p.paused ? ' Timer is paused.' : '';
-    if (!p.next) return `Campaign done. Kitava was ${spokenDelta(activeMs(c.campaign.done.M13) / MIN - MILESTONES[KITAVA_IDX][S.pace])} on ${S.pace.slice(1)} hour pace.`;
+    if (!p.next) return `Campaign done. Kitava was ${spokenDelta(activeMs(c.campaign.done.M13) / MIN - paceAt(MILESTONES[KITAVA_IDX]))} on ${paceWords()} pace.`;
     const over = p.seg.elapsed / MIN - p.seg.target;
-    return `${shortLabel(p.next)}: ${Math.round(Math.abs(over))} minutes ${over > 0 ? 'over' : 'left'}. Overall ${spokenDelta(p.deltas[S.pace])} on ${S.pace.slice(1)} hour pace. Played ${fmtDur(p.elapsed * MIN)}. Kitava projected ${fmtClock(p.projKitava)}.${pz}`;
+    return `${shortLabel(p.next)}: ${Math.round(Math.abs(over))} minutes ${over > 0 ? 'over' : 'left'}. Overall ${spokenDelta(p.deltas[S.pace])} on ${paceWords()} pace. Played ${fmtDur(p.elapsed * MIN)}. Kitava projected ${fmtClock(p.projKitava)}.${pz}`;
   }
   if (what === 'gate') {
-    const i = clearedIdx(), g = GATES[i + 1];
+    const i = clearedIdx(), g = tiers()[i + 1];
     return `You are ${bandWords(i)}.` + (g ? ` ${g.name} needs: ${gateCheck(g).fails.slice(0, 3).join(', ')}.` : '');
   }
   if (what === 'fates') {
     const i = clearedIdx();
     const camp = !c.campaign.done.M13 && !c.band;
-    return camp ? (S.fates.campaignOk ? 'Campaign: one Fate on a known boss.' : 'Campaign: zero Fates.') : `Up to ${i < 0 ? 0 : GATES[Math.min(i, 2)].fateCap} Fates in your band. One on a boss you have not killed on this character.`;
+    return camp ? (S.fates.campaignOk ? 'Campaign: one Fate on a known boss.' : 'Campaign: zero Fates.') : `Up to ${i < 0 ? 0 : tiers()[i].fateCap} Fates in your band. One on a boss you have not killed on this character.`;
   }
   // next
   if (p && p.next && p.k <= KITAVA_IDX + 2) {
     const st = nextStop(p.k);
-    return `Next: ${shortLabel(p.next)}, by ${fmtClock(wallAt(p.next[S.pace]))}. Gate: ${p.next.gate.split('.')[0]}.${st && st.ms === p.next ? ' Then ' + st.stop.title.replace(/^Stop (\d) at [^:]+:/, 'stop $1:') + '.' : ''}`;
+    return `Next: ${shortLabel(p.next)}, by ${fmtClock(wallAt(paceAt(p.next)))}. Gate: ${p.next.gate.split('.')[0]}.${st && st.ms === p.next ? ' Then ' + st.stop.title.replace(/^Stop (\d) at [^:]+:/, 'stop $1:') + '.' : ''}`;
   }
   const t = buildTasks(S.budget).filter((x) => x.title);
   return t.length ? 'Next: ' + t.slice(0, 2).map((x) => x.title).join('. Then ') + '.' : 'Nothing queued.';

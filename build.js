@@ -15,7 +15,7 @@ const trees = fs.existsSync(path.join(dir, 'src', 'gen')) ? fs.readdirSync(path.
 const treeJs = '{' + trees.map((f) => JSON.stringify(f.slice(5, -5)) + ':' + gen(f)).join(',') + '}';
 const js = `const DEFAULT_TRIGGERS = ${JSON.stringify(triggers)};\nconst BUILD_PLAN = ${JSON.stringify(plan)};\n` +
   (bcfg ? `const DEFAULT_BUILD_CFG = ${bcfg};\n` : '') + `const TREE_DATA = ${treeJs};\n` + (fates ? `const FATE_DATA = ${fates};\n` : '') + `const DEFAULT_TYPES = ${JSON.stringify(typesDoc.types)};\n` +
-  src('data.js') + src('app.js') + src('types.js') + src('chase.js') + src('layout.js') + src('links.js') + src('bosses.js') + src('render.js') + src('voice.js') + src('bind.js');
+  src('data.js') + src('app.js') + src('types.js') + src('chase.js') + src('layout.js') + src('links.js') + src('bosses.js') + src('render.js') + src('voice.js') + src('v5.js') + src('config.js') + src('v53.js') + src('bind.js');
 const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PoE 3.30 HC SSF Tracker</title>

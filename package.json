@@ -1,13 +1,13 @@
 {
   "name": "poe-roadmap",
-  "version": "4.1.0",
+  "version": "5.3.0",
   "private": true,
   "description": "Path of Exile campaign and mapping companion: pace, links and tree per stage, Fate bosses, Power Chase, voice push-to-talk and screenshot OCR.",
   "license": "MIT",
   "scripts": {
     "build": "node build.js",
     "test": "node test/test.js && node test/import_ui.js",
-    "test:e2e": "node test/voice_e2e.js && node test/v4_e2e.js",
+    "test:e2e": "node test/voice_e2e.js && node test/v4_e2e.js && node test/v5_e2e.js && node test/v51_e2e.js && node test/v52_e2e.js && node test/v53_e2e.js",
     "screenshot": "node test/shot.js"
   },
   "devDependencies": {

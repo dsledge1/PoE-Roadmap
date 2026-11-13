@@ -60,23 +60,14 @@ It prints ok or fail and never prints the key. The model and endpoint are set in
 ## 7. First run: make it yours
 The tracker starts with the **Example build: Frostbearer Spectre Necromancer**. To switch to your own:
 
-1. **Start fresh for another player** (Character section, red button). Use this if someone else has used the tracker in this browser. It asks twice, then clears this browser's tracker data: log, characters, voice history, imported build and lists. Skip it on a brand-new install.
-2. **Use my own PoB** (top of Links & tree). The import box opens. It accepts a **PoB export code, pobb.in or poe.ninja/pob link, or .xml file**:
-   - paste an export code (Path of Building → Import/Export Build → Generate → Copy) or a pobb.in / poe.ninja/pob link and press **Import PoB**, or
-   - click **Choose .xml file** (or drop the file on the box) and pick your build from `Documents\Path of Building\Builds\`.
+1. **Start fresh for another player** (Advanced). Use this if someone else has used the tracker in this browser. It asks twice, then clears this browser's tracker data. Skip it on a brand-new install.
+2. **Import PoB build** (top of the page). It accepts a **PoB export code, pobb.in or poe.ninja/pob link, or .xml file**:
+   - paste an export code (Path of Building → Import/Export Build → Generate → Copy) or a pobb.in / poe.ninja/pob link and press **Import PoB build**, or
+   - choose the `.xml` (or drop it on the box) from `Documents\Path of Building\Builds\`.
 
-   The status line shows how each stage was mapped. Anything that didn't map is listed, and **Edit mapping + categories** lets you fix it by hand. To get a clean mapping straight away, name your trees and skill sets as described in **[Making your PoB compatible](POB_GUIDE.md)**.
-3. **Name your character** and pick its build in the Character section. Edit your drop and event types (Drops & events → Log manually · drop & event types) and your Power Chase list.
-4. **Export profile** saves one `.json` file with your build, drop and event types, Power Chase list and content types (no log). **Import profile (.json)** loads one; it accepts only a **.json profile exported from this tracker**. Use it to move to another PC or to share your setup with a friend.
-
-Other import buttons, for reference:
-| Button | Accepts |
-|---|---|
-| Import PoB / Choose .xml file (Links & tree) | PoB export code, pobb.in or poe.ninja/pob link, or .xml file |
-| Load build config (.json) (Links & tree) | `.json` build config saved with Export build config |
-| Import profile (.json) (Character) | `.json` profile exported from this tracker |
-| Import log (top bar) | `.json` full backup made with Export |
-| Import triggers (top bar) | `.json` triggers file (a `"triggers"` array) |
+   Any PoB works: act-titled, level-titled or name-titled skill sets, or just a single tree. The status line shows how each stage was mapped, and **Edit stage mapping** lets you fix anything by hand. For a clean mapping straight away, see **[Making your PoB compatible](POB_GUIDE.md)**.
+3. **Name your character** in the Character section. Edit your drop and event types and your Power Chase list. **⚙ Configure** sets your defense stats, tier checks, rules and pace.
+4. **Download backup** saves one `.json` with your log, characters, build and settings. **Restore backup** (Advanced) loads one. Use it to move to another PC.
 
 Drop the wrong file on one of these and the tracker tells you which button it belongs to.
 

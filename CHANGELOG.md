@@ -4,6 +4,18 @@ Detailed notes for each version are in [`docs/history/`](docs/history/).
 
 ## Unreleased
 
+## 5.3.0 (Nov 13, 2026): league-launch fixes
+Lab trials (done / missed, reminders before the lab), "restart timer" starts a new run and keeps the old one, "confirmed" applies a screenshot read, more wiki-link phrasings ("link for X", "wiki X"), Fate reward questions with loose boss names, area and boss-kill tracking for Acts 1–3, OCR misread fixes, and an approximate PoB-style **EHP and max hit** line on the Defense panel. [Details](docs/history/v5.3.md)
+
+## 5.2 (Nov 13, 2026)
+The ⚙ Configure page (defense stats, per-tier checks, drop and event triggers, rules, general), new defense stats (MoM, evade, suppression, armour, phys reduction, endurance charges, phys taken as), Power Chase items link to poewiki. [Details](docs/history/v5.2.md)
+
+## 5.1 (Nov 13, 2026)
+Any PoB imports (act-, level- or name-titled sets, or a single tree), level-based stage tabs, character level from the F10 screenshot. [Details](docs/history/v5.1.md)
+
+## 5.0 (Nov 13, 2026)
+One PoB import button, Download / Restore backup, pace presets, drag-and-drop panels, text size, content colour-coding in Power Chase, "get a 6 link" never becomes Act 6. [Details](docs/history/v5.md)
+
 ## 4.1.0 (Nov 13, 2026): first public release
 - **Clearer import controls.** Each import says exactly what it accepts: the PoB import takes a "PoB export code, pobb.in or poe.ninja/pob link, or .xml file", and Import profile takes a ".json profile exported from this tracker". New **Choose .xml file** button (and drag and drop) for PoB builds. Every file picker has a matching `accept` filter, each control has a one-line helper and a link to the PoB guide, and the wrong file gets a friendly message that names the right button (e.g. a profile `.json` dropped on the PoB import, or a PoB `.xml` on Import profile). Bad pasted text (JSON, links from other sites, random text) is caught before it's sent.
 - **Docs:** README, [Getting Started](docs/GETTING_STARTED.md), [Making your PoB compatible](docs/POB_GUIDE.md) with a worked example ([`docs/examples/example_pob.xml`](docs/examples/example_pob.xml)), CONTRIBUTING.

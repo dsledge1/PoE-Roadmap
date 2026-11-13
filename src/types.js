@@ -42,6 +42,7 @@ function matchType(text, opts = {}) {
   let best = null, bl = 0;
   for (const t of types()) {
     if (opts.noBuiltin && t.builtin) continue;
+    if (t.enabled === false) continue;          // v5.2: turned off in Configure
     for (const a of [t.name, ...(t.aliases || [])]) { const ak = ckey(a); if (ak.length >= 2 && k.includes(' ' + ak + ' ') && ak.length > bl) { bl = ak.length; best = t; } }
   }
   if (best && best.kind === 'drop' && / (not|no|never|need|needs|missing|without|want|wish|hope|hoping|if|going to|gonna|would|could) /.test(k.replace(/ no way /g, ' '))) return null;
@@ -71,7 +72,7 @@ let typeSyncTimer = null;
 function syncTypes() {
   if (!VOICE.served) return;
   clearTimeout(typeSyncTimer);
-  typeSyncTimer = setTimeout(() => fetch('/api/custom_types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ types: types() }) }).catch(() => {}), 50);
+  typeSyncTimer = setTimeout(() => fetch('/api/custom_types', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ types: types().filter((t) => t.enabled !== false) }) }).catch(() => {}), 50);
 }
 function typesChanged() { save(); syncTypes(); renderTypes(); renderSuggest(); }
 
