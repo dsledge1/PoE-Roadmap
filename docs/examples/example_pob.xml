@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal, made-up Path of Building build that shows the naming rules in docs/POB_GUIDE.md.
+     Not a real build guide. Import it with "Choose .xml file" in Links & tree. -->
+<PathOfBuilding>
+ <Build level="70" className="Witch" ascendClassName="Necromancer"/>
+ <Skills activeSkillSet="1">
+  <SkillSet id="1" title="^6Act 1">
+   <Skill label="==== Main Skills ====" enabled="true"></Skill>
+   <Skill label="3L Rolling Magma (until you get SRS)" enabled="true"><Gem nameSpec="Rolling Magma" level="3" enabled="true"/><Gem nameSpec="Arcane Surge" enabled="true"/><Gem nameSpec="Added Lightning Damage" enabled="true"/></Skill>
+   <Skill label="^xE05030MAIN DMG SRS" enabled="true"><Gem nameSpec="Summon Raging Spirit" enabled="true"/><Gem nameSpec="Minion Damage" enabled="true"/></Skill>
+   <Skill label="" enabled="true"></Skill>
+   <Skill label="==== Utility ====" enabled="true"></Skill>
+   <Skill label="Mobility" enabled="true"><Gem nameSpec="Flame Dash" enabled="true"/></Skill>
+   <Skill label="Flesh offering" enabled="true"><Gem nameSpec="Flesh Offering" enabled="true"/></Skill>
+  </SkillSet>
+  <SkillSet id="2" title="^6Act 2">
+   <Skill label="==== Main Skills ====" enabled="true"></Skill>
+   <Skill label="Absolution (replace SRS after Merveil)" enabled="true"><Gem nameSpec="Absolution" enabled="true"/><Gem nameSpec="Minion Damage" enabled="true"/><Gem nameSpec="Added Lightning Damage" enabled="true"/></Skill>
+   <Skill label="==== Auras ====" enabled="true"></Skill>
+   <Skill label="Vit &amp; Clarity (drop Clarity at level 30)" enabled="true"><Gem nameSpec="Vitality" enabled="true"/><Gem nameSpec="Clarity" enabled="true"/></Skill>
+  </SkillSet>
+  <SkillSet id="3" title="^6Act 3-10">
+   <Skill label="==== Main Skills ====" enabled="true"></Skill>
+   <Skill label="4L Absolution" enabled="true"><Gem nameSpec="Absolution" enabled="true"/><Gem nameSpec="Minion Damage" enabled="true"/><Gem nameSpec="Spell Echo" enabled="true"/><Gem nameSpec="Added Lightning Damage" enabled="true"/></Skill>
+   <Skill label="==== Support Spectres ====" enabled="true"></Skill>
+   <Skill label="Spectres (any good caster)" enabled="true"><Gem nameSpec="Raise Spectre" enabled="true"/><Gem nameSpec="Minion Life" enabled="true"/></Skill>
+  </SkillSet>
+  <SkillSet id="4" title="^5Early maps {1}">
+   <Skill label="6L Spectres" enabled="true"><Gem nameSpec="Raise Spectre" enabled="true"/><Gem nameSpec="Minion Damage" enabled="true"/><Gem nameSpec="Spell Echo" enabled="true"/></Skill>
+   <Skill label="Auras" enabled="true"><Gem nameSpec="Clarity" enabled="true"/></Skill>
+  </SkillSet>
+  <SkillSet id="5" title="^5Late maps {2}">
+   <Skill label="6L Spectres (Mortar projectile = 5x count)" enabled="true"><Gem nameSpec="Raise Spectre" enabled="true"/><Gem nameSpec="Minion Damage" enabled="true"/></Skill>
+  </SkillSet>
+ </Skills>
+ <Tree activeSpec="1">
+  <Spec title="Act 1" treeVersion="3_29" classId="3" nodes="54447,57264,37569"/>
+  <Spec title="Act 2" treeVersion="3_29" classId="3" nodes="54447,57264,37569,36542"/>
+  <Spec title="Act 5" treeVersion="3_29" classId="3" nodes="54447,57264,37569,36542,6230"/>
+  <Spec title="^2Early {1}" treeVersion="3_29" classId="3" nodes="54447,57264,37569,36542,6230"/>
+  <Spec title="^1Late {2}" treeVersion="3_29" classId="3" nodes="54447,57264,37569,36542,6230"/>
+ </Tree>
+</PathOfBuilding>
