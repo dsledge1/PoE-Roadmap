@@ -1,0 +1,41 @@
+{
+  "port": 8765,
+  "hotkey": "f9",
+  "tracker_html": "../poe_tracker.html",
+  "model": "small.en",
+  "cpu_model": "small.en",
+  "device": "auto",
+  "beam_size": 2,
+  "mic_device": "",
+  "max_record_s": 15,
+  "preroll_ms": 300,
+  "tail_ms": 150,
+  "tts": true,
+  "tts_volume": 80,
+  "tts_rate": 2,
+  "beep_volume": 0.25,
+  "speak_typed": true,
+  "result_timeout_ms": 1200,
+  "ocr_hotkey": "f10",
+  "ocr_engine": "auto",
+  "ocr_region": "left",
+  "research": {
+    "backend": "openai_compatible",
+    "wiki_api": "https://www.poewiki.net/w/api.php",
+    "wiki_timeout_s": 4,
+    "llm_timeout_s": 8,
+    "max_spoken_chars": 260,
+    "openai_compatible": {
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-6-luna",
+      "api_key_env": "OPENAI_API_KEY",
+      "max_tokens": 350,
+      "token_param": "max_completion_tokens",
+      "temperature": null
+    },
+    "ollama": {
+      "base_url": "http://127.0.0.1:11434",
+      "model": "qwen2.5:7b-instruct"
+    }
+  }
+}

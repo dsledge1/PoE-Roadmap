@@ -1,0 +1,24 @@
+# PoE tracker voice companion (Windows 11, Python 3.10)
+faster-whisper>=1.1,<2
+rapidfuzz>=3.6
+sounddevice>=0.4.6
+numpy>=1.24,<3
+pynput>=1.7.6
+pywin32>=306; sys_platform == "win32"
+# CUDA 12 runtime for faster-whisper on an NVIDIA GPU (optional; CPU works too) (CTranslate2 4.x needs cuBLAS 12 + cuDNN 9)
+nvidia-cublas-cu12; sys_platform == "win32"
+nvidia-cudnn-cu12>=9,<10; sys_platform == "win32"
+# v2: screenshot import (F10 / paste). Screen grab + image decode:
+Pillow>=10
+# Windows' built-in OCR engine (Windows.Media.Ocr) through the WinRT projection. Local, no download of models.
+winrt-runtime>=2.0; sys_platform == "win32"
+winrt-Windows.Media.Ocr>=2.0; sys_platform == "win32"
+winrt-Windows.Graphics.Imaging>=2.0; sys_platform == "win32"
+winrt-Windows.Storage.Streams>=2.0; sys_platform == "win32"
+winrt-Windows.Foundation>=2.0; sys_platform == "win32"
+# winrt 3.x splits Foundation.Collections out; OcrEngine needs it ("No module named winrt.windows.foundation.collections")
+winrt-Windows.Foundation.Collections>=2.0; sys_platform == "win32"
+winrt-Windows.Globalization>=2.0; sys_platform == "win32"
+# v3: fallback OCR engine, now a real requirement (~15 MB of ONNX models, CPU). Used automatically whenever
+# Windows OCR raises anything (e.g. winrt 3.2.1 "Invalid parameter count"). Box-tested with 1.2.3; newer 1.3/1.4 are handled (use_cls kwarg) but not box-tested.
+rapidocr-onnxruntime>=1.2.3,<2

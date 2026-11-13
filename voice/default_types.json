@@ -1,0 +1,24 @@
+{
+  "note": "Default custom drop/event types for a new character (v4). The tracker embeds this file at build time; the companion uses it until the page syncs the character's own list. 'builtin' = the tracker's own event label (keeps its side effects, e.g. a death marks the character dead). 'named' = keep the item name the dictionary hears (\"found a unique Bones of Ullr\" -> \"Unique: Bones of Ullr\").",
+  "types": [
+    {"id": "t4l",   "name": "4-link",  "kind": "drop", "aliases": ["4 link", "dropped a 4 link", "found a 4 link"]},
+    {"id": "t5l",   "name": "5-link",  "kind": "drop", "aliases": ["5 link", "found a 5 link"]},
+    {"id": "t6l",   "name": "6-link",  "kind": "drop", "aliases": ["6 link"]},
+    {"id": "t6s",   "name": "6-socket", "kind": "drop", "aliases": ["6 socket", "6 sock"]},
+    {"id": "trgb",  "name": "3/4-link, right colours", "kind": "drop", "aliases": ["right colours", "correct colours", "good colours", "rgb", "red green blue", "3 link with the right colours", "4 link with the right colours", "3 link right colours", "4 link right colours"]},
+    {"id": "tuniq", "name": "Unique", "kind": "drop", "named": ["unique", "trigger"], "aliases": ["unique", "unique item"]},
+    {"id": "tfate", "name": "Fate card", "kind": "drop", "aliases": ["fate card"]},
+    {"id": "tvisc", "name": "Viscera", "kind": "drop", "named": ["viscera"], "aliases": ["viscera", "organ"]},
+    {"id": "eDeath", "name": "Death", "kind": "event", "builtin": "Death (character died)", "aliases": ["died", "rip"]},
+    {"id": "eNear",  "name": "Near-death", "kind": "event", "builtin": "Near-death (flasks empty / pool < 30%)", "aliases": ["near death", "close call"]},
+    {"id": "eT1",  "name": "Reached white maps (T1)", "kind": "event", "builtin": "Reached white maps (T1)", "aliases": ["white maps"]},
+    {"id": "eT6",  "name": "Reached T6",  "kind": "event", "builtin": "Reached T6",  "aliases": ["t6"]},
+    {"id": "eT11", "name": "Reached T11", "kind": "event", "builtin": "Reached T11", "aliases": ["t11"]},
+    {"id": "eT15", "name": "Reached T15", "kind": "event", "builtin": "Reached T15", "aliases": ["t15"]},
+    {"id": "eL68", "name": "Reached level 68", "kind": "event", "builtin": "Reached level 68", "aliases": ["level 68"]},
+    {"id": "eAtlas", "name": "Atlas opened", "kind": "event", "builtin": "Atlas opened", "aliases": ["atlas opened"]},
+    {"id": "eSlot", "name": "Second map-device slot", "kind": "event", "builtin": "Second map-device slot unlocked", "aliases": ["second slot"]},
+    {"id": "eVeri", "name": "Verisium Outcrop found", "kind": "event", "builtin": "Verisium Outcrop found", "aliases": ["verisium", "verisium outcrop"]},
+    {"id": "eFrost", "name": "Frostbearer captured", "kind": "event", "builtin": "Frostbearer captured", "aliases": ["frostbearer", "frostbearer captured", "captured a frostbearer"]}
+  ]
+}

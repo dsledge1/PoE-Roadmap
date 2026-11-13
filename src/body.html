@@ -1,0 +1,179 @@
+<header>
+  <h1>PoE 3.30 HC SSF Tracker</h1>
+  <span class="sum" id="hdrSummary"></span>
+  <span class="sp"></span>
+  <span id="voiceDot" class="vdot v-off">Voice</span>
+  <span class="sum" id="hdrClock"></span>
+  <button id="btnExport" title="Download everything as JSON">Export</button>
+  <button id="btnCopy" title="Copy export JSON to clipboard">Copy JSON</button>
+  <span><button id="btnImportState" type="button" title="Accepts: .json file made with Export (full tracker backup)">Import log</button><input id="fileState" type="file" accept=".json,application/json" class="hidden"></span>
+  <span><button id="btnImportTrig" type="button" title="Accepts: .json triggers file (a &quot;triggers&quot; array)">Import triggers</button><input id="fileTrig" type="file" accept=".json,application/json" class="hidden"></span>
+</header>
+<main>
+ <div class="col">
+  <!-- 1. Campaign pace -->
+  <section id="pace" data-panel="pace">
+    <h2>Campaign pace <small id="paceSub"></small></h2>
+    <div id="paceStart" class="row">
+      <button class="pri big" id="btnStartNow">Start league now</button>
+      <button id="btnStartLaunch">Started at 2:00 PM ET Fri</button>
+      <input type="datetime-local" id="startInput"><button id="btnSetStart">Set start</button>
+    </div>
+    <div id="paceLive" class="hidden">
+      <div id="pauseBanner" class="pausebanner hidden"></div>
+      <div class="row" style="justify-content:space-between">
+        <div><div class="dim" id="curLabel">Current segment</div><div class="timer" id="segTimer">0:00</div><div class="dim" id="segTarget"></div><div class="bar"><i id="segBar"></i></div></div>
+        <div style="text-align:right"><div class="dim">Elapsed</div><div class="timer sub" id="elapsed">0:00</div><div class="dim" id="projKitava"></div></div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="row">
+        <button class="pri big" id="btnNextMs">Act 1 done</button>
+        <button id="btnUndoMs" class="sm ghost">Undo last</button>
+        <button id="btnPause" title="Pause the league timer (excluded from pace). Voice: “pause timer” / “resume”">⏸ Pause</button>
+        <span class="dim" id="pauseTotal"></span>
+        <span class="sp"></span>
+        <span class="dim">Pace column:</span>
+        <span class="seg" id="paceSel"><button data-p="t6">6h</button><button data-p="t7">7h</button><button data-p="t8">8h</button></span>
+      </div>
+      <div id="nextGate" class="box gate"></div>
+      <div id="nextStop" class="box stop"></div>
+      <details><summary>All milestones</summary><table id="msTable"></table>
+        <div class="row"><button class="sm danger" id="btnResetCampaign">Reset campaign timer</button></div></details>
+    </div>
+  </section>
+
+  <!-- 4. Next up (v4: above Voice) -->
+  <section id="next" data-panel="next">
+    <h2>Next up <span class="seg" id="budgetSel"><button data-b="15">15m</button><button data-b="30">30m</button><button data-b="60">60m</button><button data-b="999">Session</button></span></h2>
+    <div id="taskList"></div>
+  </section>
+
+  <!-- Voice companion -->
+  <section id="voice" data-panel="voice">
+    <h2>Voice <small id="voiceHint"></small></h2>
+    <form id="voiceForm" class="row" autocomplete="off"><input id="voiceTyped" placeholder="type a voice command, e.g. act 3 done, chaos res 30" style="flex:1;min-width:200px"><button type="submit">Send</button></form>
+    <div class="loglist" id="voiceList" style="max-height:220px"></div>
+  </section>
+
+
+ </div>
+ <div class="col">
+  <!-- 2. Drop / event log -->
+  <section id="log" data-panel="log">
+    <h2>Drops &amp; events <small>say it: “dropped a 4 link”, “found a 5 link”, “near death”</small></h2>
+    <details id="typesBox"><summary>Log manually · drop &amp; event types (<span id="typeCount">0</span>)</summary>
+      <form id="logForm" class="row" autocomplete="off">
+        <input id="logInput" list="logSuggest" placeholder="fallback: 5 link, Cane of Unravelling, staff 812 pdps, near-death" style="flex:1;min-width:200px">
+        <datalist id="logSuggest"></datalist>
+        <button class="pri sm" type="submit">Log</button>
+      </form>
+      <div class="dim small">Types for this character. Voice: “add drop type mirror shard”, “add event type boss down”, “delete drop type …”, “rename drop type X to Y”. Built-in events keep their effect (a death marks the character dead).</div>
+      <div class="ttwrap"><table id="typeTable" class="ttable"></table></div>
+      <form id="typeAddForm" class="row" autocomplete="off">
+        <input id="typeNewName" placeholder="new type, e.g. Mirror shard" style="flex:1;min-width:120px">
+        <select id="typeNewKind"><option value="drop">drop</option><option value="event">event</option></select>
+        <input id="typeNewAlias" placeholder="aliases (comma separated)" style="flex:1;min-width:120px">
+        <button class="sm" type="submit">Add type</button><button class="sm ghost" type="button" id="btnTypesDefault">Defaults</button>
+      </form>
+    </details>
+    <div id="logResult"></div>
+    <h2 style="margin-top:12px">Open trigger actions <small id="openCount"></small></h2>
+    <div id="openActions"></div>
+    <details open><summary>History</summary><div class="loglist" id="logList"></div></details>
+  </section>
+
+  <!-- v4: Power Chase (endgame checklist) -->
+  <section id="chase" data-panel="chase">
+    <h2>Power Chase <small id="chaseSub"></small><span class="sp"></span><label class="small"><input type="checkbox" id="chaseOn"> Enable when maps and res are good</label></h2>
+    <div id="chaseHint" class="small"></div>
+    <div id="chaseBody" class="hidden">
+      <div class="row"><select id="chaseFilter"></select><span class="sp"></span>
+        <select id="chaseTpl"><option value="">Load a template…</option><option>Spectre Necromancer</option><option>ED Occultist</option></select></div>
+      <div id="chaseList"></div>
+      <form id="chaseAddForm" class="row" autocomplete="off">
+        <input id="chaseNewItem" placeholder="item, e.g. Shavronne's Wrappings" style="flex:2;min-width:140px">
+        <select id="chaseNewContent"></select>
+        <input id="chaseNewNote" placeholder="note (optional)" style="flex:1;min-width:100px">
+        <button class="sm pri" type="submit">Add</button>
+      </form>
+      <details><summary>Content types</summary><div id="ctList" class="row"></div>
+        <form id="ctAddForm" class="row" autocomplete="off"><input id="ctNew" placeholder="e.g. Sanctum"><button class="sm" type="submit">Add</button></form></details>
+      <div class="dim small">Voice: “chase done Darkness Enthroned”, “add chase item X from Delve”, “what's left on my chase”.</div>
+    </div>
+  </section>
+
+ </div>
+ <div class="col">
+  <!-- 3. Defense -->
+  <section id="defense" data-panel="defense">
+    <h2>Defense checkpoint <small id="defUpdated"></small></h2>
+    <div class="grid2">
+      <label for="dLevel">Char level</label><input id="dLevel" type="number" min="1" max="100">
+      <label>Res (in-game)</label><span class="resrow"><label>Fire <input id="dFire" type="number" min="-100" max="90"></label><label>Cold <input id="dCold" type="number" min="-100" max="90"></label><label>Light <input id="dLight" type="number" min="-100" max="90"></label></span>
+      <label for="dChaos">Chaos res</label><input id="dChaos" type="number" min="-100" max="90">
+      <label>Ele res 75/75/75</label><span><label><input type="checkbox" id="dEle"> capped</label> &nbsp; <label><input type="checkbox" id="dOver"> ~10% overcap</label></span>
+      <label>Life / ES</label><span class="resrow"><label>Life <input id="dLife" type="number" min="0" step="10"></label><label>ES <input id="dEs" type="number" min="0" step="10"></label></span>
+      <label for="dPool">Pool (life + ES)</label><span class="row" style="margin:0"><input id="dPool" type="number" min="0" step="100" title="Sum of life and ES; type here only if you know just the total"><span id="poolTarget" class="pooltgt"></span></span>
+      <label>Block %</label><span class="resrow"><label>Attack <input id="dAblock" type="number" min="0" max="90"></label><label>Spell <input id="dBlock" type="number" min="0" max="90"></label></span>
+    </div>
+    <div id="kitPen" class="kitpen"></div>
+    <div id="ocrBox" class="box ocrbox hidden"></div>
+    <!-- TODO(EHP): compute effective hit pool the way PoB does (life+ES, armour/evasion, block, res, max-hit per damage type).
+         Armour/evasion/mana from the screenshot are stored in char.def for that; nothing uses them yet. -->
+    <div class="dim small">Screenshot import: press <b id="ocrKeyHint">F10</b> on the in-game Defences tab (or PoB sidebar), or paste a screenshot here (Ctrl+V). Read locally, you confirm before anything changes.</div>
+    <div class="cleared" id="clearedFor"></div>
+    <div class="gates" id="gateList"></div>
+  </section>
+
+  <!-- 5. Fate bosses for the current act -->
+  <section id="fates" data-panel="fates">
+    <h2>Fate bosses <small id="bossSub"></small></h2>
+    <div class="row"><input id="bossSearch" list="bossSuggest" placeholder="any boss, e.g. Merveil" style="flex:1"><datalist id="bossSuggest"></datalist></div>
+    <div id="bossList"></div>
+    <div class="dim small" id="fateSrc"></div>
+    <details><summary>Fate cards (what each one adds)</summary><table id="fateCards"></table></details>
+    <details><summary>Bosses killed on this character (<span id="killCount">0</span>)</summary><table id="killTable"></table></details>
+    <label class="row small dim" style="flex-wrap:nowrap"><input type="checkbox" id="fCampaign"> Launch intel: 1 Fate is OK on a known campaign boss</label>
+  </section>
+ </div>
+ <div class="col colwide">
+  <!-- 6. Links + passive tree for the current stage -->
+  <section id="links" data-panel="links">
+    <h2>Links &amp; tree <small id="linkSub"></small></h2>
+    <div class="row" id="linkStages"></div>
+    <div class="row"><span id="linkHead"></span><span class="sp"></span><span id="linkVariant"></span><button class="sm" id="btnOwnPob" title="Import your own Path of Building: PoB export code, pobb.in or poe.ninja/pob link, or .xml file">Use my own PoB</button></div>
+    <div class="lgrid" id="linkCards"></div>
+    <div class="treewrap"><div id="treeBox" class="treebox"></div><div id="treeCap" class="small"></div></div>
+    <details id="pobImport"><summary>Import Path of Building / edit</summary>
+      <div class="dim small" id="pobAccepts">Accepts: <b>PoB export code, pobb.in or poe.ninja/pob link, or .xml file</b>. Paste it below or choose / drop a .xml file, then press Import PoB.</div>
+      <div class="dim small">Name your PoB's trees and skill sets “Act 1”…“Act 10” and “Early / Mid / Late maps” so each stage finds its links: <a href="https://github.com/dsledge1/PoE-Roadmap/blob/main/docs/POB_GUIDE.md" target="_blank" rel="noopener" id="pobGuideLink">PoB setup guide</a>. “Reset to default” goes back to the example build.</div>
+      <textarea id="pobText" rows="3" placeholder="PoB export code, pobb.in or poe.ninja/pob link, or the XML text" aria-describedby="pobAccepts"></textarea>
+      <div class="row"><button class="pri" id="btnPobImport">Import PoB</button>
+        <span><button id="btnPobFile" type="button" title="A .xml build file saved from Path of Building (Documents\Path of Building\Builds)">Choose .xml file</button><input id="filePob" type="file" accept=".xml,text/xml,application/xml" class="hidden"></span>
+        <button id="btnLinkEdit">Edit mapping + categories</button><button id="btnBcfgExport">Export build config</button>
+        <span><button id="btnBcfgLoad" type="button" title="Accepts: .json build config saved with Export build config">Load build config (.json)</button><input id="fileBcfg" type="file" accept=".json,application/json" class="hidden"></span>
+        <button class="sm danger" id="btnBcfgReset">Reset to default</button>
+        <label class="dim">Maps stage <select id="mapPin"><option value="">auto (tier)</option><option value="EM">Early</option><option value="MM">Mid</option><option value="LM">Late</option></select></label></div>
+      <div id="pobStatus" class="dim small"></div>
+      <div id="mapEditor"></div>
+    </details>
+  </section>
+ </div>
+  <section id="charsec" class="wide">
+    <h2>Character <small>Data stays in this browser (localStorage). Export often.</small></h2>
+    <div class="row"><label>Name <input id="cName" placeholder="character name"></label>
+      <label>Build <select id="cBuild"></select></label>
+      <span id="cStatus"></span><span class="sp"></span>
+      <button class="danger" id="btnNewChar">New character (keeps log, resets campaign/defense/fates)</button>
+      <button class="sm ghost" id="btnResetTrig">Use embedded triggers</button>
+      <span class="dim" id="trigInfo"></span></div>
+    <div class="row"><b>Profile</b> <span class="dim small">build + drop &amp; event types + Power Chase, one JSON file to share</span>
+      <button class="sm" id="btnProfileExport">Export profile</button>
+      <span><button class="sm" id="btnProfileImport" type="button" title="Accepts: .json profile exported from this tracker">Import profile (.json)</button><input id="fileProfile" type="file" accept=".json,application/json" class="hidden"></span>
+      <span class="sp"></span><button class="sm danger" id="btnFreshProfile" title="Wipe this browser's tracker for another player">Start fresh for another player</button></div>
+    <div class="dim small" id="profileAccepts">Import profile accepts: <b>.json profile exported from this tracker</b> (made with Export profile). To bring in a Path of Building build, use Links &amp; tree → Use my own PoB (<a href="https://github.com/dsledge1/PoE-Roadmap/blob/main/docs/POB_GUIDE.md" target="_blank" rel="noopener">PoB setup guide</a>).</div>
+    <div id="profileStatus" class="small"></div>
+    <details><summary>Previous characters</summary><table id="histTable"></table></details>
+  </section>
+</main>
+<div id="toast"></div>

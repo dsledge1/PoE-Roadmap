@@ -1,0 +1,43 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# Your local settings and data (never commit these)
+voice/config.json
+config.json
+voice/build_config.json
+voice/cache/
+voice/logs/
+logs/
+*.log
+.env
+*.env
+
+# Test output and generated audio
+test-results/
+test/out/
+voice/asr_test/clips/
+voice/screenshot_voice.png
+*.tmp
+
+# Screenshots of your own game screen and private builds
+screenshots/
+ocr_sample*.png
+defences*.png
+*_private*
+private/
+*.pob.xml
+
+# Release bundles
+*.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,117 @@
+{
+  "build": "Spectre Necromancer (Forged Frostbearer)",
+  "updated": "2026-11-12",
+  "bar": "relaxed",
+  "spellBlock": true,
+  "sources": [
+    "Zizaran x Helm Breaker 'Spectres Summoner' starter PoB (maxroll t11sg0yu, skill sets Act 1 / Act 2 / Act 3 / Act 4-10 / Lvl70 Early mapping / Early Rare 6 link / Early Bitterdream / Early Reverberation Rod)",
+    "Ziz HC PoB (maxroll 54yj0yga), Maxroll written guide updated for 3.30 (Nov 12, 2026)",
+    "Author's launch plan notes (not included)"
+  ],
+  "data_note": "Gem names and links are from 3.29-data PoBs (PoB has no 3.30 data yet). No 3.30 patch note touches Raise Spectre, Absolution, SRS, Desecrate or the Offerings. Re-check after the PoB 3.30 update.",
+  "swap_note": "Weapon swap: six Raise Spectre gems leveling from Act 3 on, so Frostbearer day is not six level-1 gems (Ziz). Never map on level-1 minion gems.",
+  "stages": [
+    {
+      "id": "A1a", "name": "Act 1 start (before SRS)", "acts": [1, 1], "levels": [1, 3],
+      "main": { "skill": "Rolling Magma", "gems": ["Rolling Magma", "Arcane Surge"] },
+      "groups": [
+        { "role": "movement", "label": "Movement", "gems": ["Flame Dash"], "note": "Frostblink works too" }
+      ],
+      "notes": ["Replace with SRS as soon as you have it (Hailrake reward)."],
+      "pob": "Ziz starter, skill set 'Act 1' (3.29 data)"
+    },
+    {
+      "id": "A1b", "name": "Act 1 SRS", "acts": [1, 1], "levels": [4, 12],
+      "main": { "skill": "Summon Raging Spirit", "gems": ["Summon Raging Spirit", "Minion Damage", "Infernal Legion"] },
+      "groups": [
+        { "role": "minions", "label": "Zombie", "gems": ["Raise Zombie", "Melee Splash"] },
+        { "role": "utility", "label": "Extras", "gems": ["Holy Flame Totem", "Summon Phantasm", "Added Lightning Damage"] },
+        { "role": "movement", "label": "Movement", "gems": ["Flame Dash"] },
+        { "role": "auras", "label": "Auras (don't level too high)", "gems": ["Vitality", "Clarity"] },
+        { "role": "utility", "label": "At level 12", "gems": ["Flesh Offering"] }
+      ],
+      "notes": ["Buy Absolution at the Merveil caverns town visit.", "Shield Charge (+ Faster Attacks) when you can buy it."],
+      "pob": "Ziz starter, skill set 'Act 1' (3.29 data)"
+    },
+    {
+      "id": "A2", "name": "Act 2 Absolution", "acts": [2, 2], "levels": [12, 24],
+      "main": { "skill": "Absolution", "gems": ["Absolution", "Added Lightning Damage", "Controlled Destruction", "Faster Casting"] },
+      "groups": [
+        { "role": "auras", "label": "Damage aura", "gems": ["Herald of Purity", "Minion Speed", "Minion Damage"] },
+        { "role": "minions", "label": "Zombies", "gems": ["Raise Zombie", "Minion Life", "Summon Phantasm"] },
+        { "role": "utility", "label": "Offering + corpses", "gems": ["Flesh Offering", "Desecrate"] },
+        { "role": "movement", "label": "Movement", "gems": ["Flame Dash"] },
+        { "role": "auras", "label": "Auras (don't level too high)", "gems": ["Vitality", "Clarity"] }
+      ],
+      "notes": ["Kill all three bandits.", "From ~16 look for minion wands/shields; Essence of Fear guarantees minion damage on a wand.", "Desecrate in the Old Fields / Broken Bridge for a Carnage Chieftain corpse later."],
+      "pob": "Ziz starter, skill set 'Act 2' (3.29 data)"
+    },
+    {
+      "id": "A3", "name": "Act 3 first spectre", "acts": [3, 3], "levels": [24, 32],
+      "main": { "skill": "Absolution", "gems": ["Absolution", "Physical to Lightning", "Controlled Destruction", "Faster Casting"] },
+      "groups": [
+        { "role": "spectres", "label": "Utility minions (spectre = Carnage Chieftain)", "gems": ["Raise Spectre", "Raise Zombie", "Minion Life", "Summon Phantasm"] },
+        { "role": "auras", "label": "Damage aura", "gems": ["Herald of Purity", "Feeding Frenzy", "Minion Damage"] },
+        { "role": "movement", "label": "Shield Charge (buy from Siosa)", "gems": ["Shield Charge", "Faster Attacks"] },
+        { "role": "movement", "label": "Movement", "gems": ["Flame Dash"] },
+        { "role": "auras", "label": "Auras", "gems": ["Vitality", "Clarity"] },
+        { "role": "utility", "label": "Extras", "gems": ["Convocation", "Flesh Offering", "Conductivity"] }
+      ],
+      "swap": ["Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre"],
+      "notes": ["Raise Spectre is the Gravicious quest reward.", "Normal lab: Mistress of Sacrifice, then Flesh -> Bone Offering so the block applies to you."],
+      "pob": "Ziz starter, skill set 'Act 3' (3.29 data)"
+    },
+    {
+      "id": "A4", "name": "Acts 4-10 Absolution", "acts": [4, 10], "levels": [32, 69],
+      "main": { "skill": "Absolution", "gems": ["Absolution", "Spell Echo", "Controlled Destruction", "Physical to Lightning", "Minion Damage", "Faster Casting"] },
+      "groups": [
+        { "role": "spectres", "label": "Utility minions (Carnage Chieftain)", "gems": ["Raise Spectre", "Raise Zombie", "Minion Life", "Summon Phantasm"] },
+        { "role": "auras", "label": "Damage aura (Feeding Frenzy moves to the golem)", "gems": ["Herald of Purity", "Minion Speed", "Minion Damage"] },
+        { "role": "minions", "label": "Golem 2L", "gems": ["Summon Stone Golem", "Feeding Frenzy"] },
+        { "role": "movement", "label": "Shield Charge", "gems": ["Shield Charge", "Faster Attacks"] },
+        { "role": "movement", "label": "Movement", "gems": ["Flame Dash"] },
+        { "role": "auras", "label": "Auras", "gems": ["Vitality", "Clarity", "Purity of Elements (around level 45)"] },
+        { "role": "utility", "label": "Extras", "gems": ["Convocation", "Conductivity", "Flesh Offering"] }
+      ],
+      "swap": ["Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre"],
+      "spectres": "Carnage Chieftain for frenzy charges. Damage spectres before Frostbearers: Slave Drivers (A5 Control Blocks) or Frost Auto-Scouts (A9 Refinery / The Tunnel).",
+      "notes": ["Ziz's PoB runs a 4L here (Absolution, Physical to Lightning, Spell Echo, Controlled Destruction); Minion Damage and Faster Casting fill a 5L/6L (launch plan 5L).", "Cruel lab: Commander of Darkness right before Act 10 Kitava.", "Kitava A5 and A10 each take 30% from all elemental res."],
+      "pob": "Ziz starter, skill set 'Act 4-10' (3.29 data); 5L/6L order from 'Lvl70 Early mapping'"
+    },
+    {
+      "id": "M70", "name": "Early maps: Vaal Absolution 5L", "acts": [11, 11], "levels": [68, 100], "maps": true,
+      "main": { "skill": "Vaal Absolution", "gems": ["Vaal Absolution", "Spell Echo", "Controlled Destruction", "Physical to Lightning", "Faster Casting", "Minion Damage"] },
+      "groups": [
+        { "role": "spectres", "label": "Utility minions 4L", "gems": ["Raise Spectre", "Raise Zombie", "Minion Life", "Summon Phantasm"] },
+        { "role": "minions", "label": "Golem 4L", "gems": ["Summon Stone Golem", "Feeding Frenzy", "Elemental Army", "Added Lightning Damage"] },
+        { "role": "movement", "label": "Damage aura + mobility 3L", "gems": ["Shield Charge", "Faster Attacks", "Herald of Purity"] },
+        { "role": "utility", "label": "Trigger wand", "gems": ["Desecrate", "Bone Offering", "Clarity"] },
+        { "role": "movement", "label": "Movement", "gems": ["Flame Dash"] },
+        { "role": "auras", "label": "Aura", "gems": ["Purity of Elements"] },
+        { "role": "utility", "label": "Extras", "gems": ["Convocation", "Conductivity"] }
+      ],
+      "swap": ["Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre", "Raise Spectre"],
+      "spectres": "Slave Drivers or Frost Auto-Scouts until you capture a Frostbearer. Femurs of the Saints, then Wretched Defiler if Frostbearers are late.",
+      "notes": ["Ziz L70: 52.3k EHP (your T11 bar is 51k).", "Raise Spectre effective level targets: 21 (T6), 22 + 3 spectres (T11), 25 (T15)."],
+      "pob": "Ziz starter, skill set 'Lvl70 Early mapping' (3.29 data)"
+    },
+    {
+      "id": "FB", "name": "Frostbearers (6L Raise Spectre)", "acts": [11, 11], "levels": [68, 100], "maps": true, "needs": "frostbearer",
+      "main": { "skill": "Raise Spectre (Forged Frostbearer)", "gems": ["Raise Spectre", "Greater Volley", "Spell Echo", "Minion Damage", "Controlled Destruction", "Faster Casting"],
+                "byLinks": { "3": ["Raise Spectre", "Spell Echo", "Greater Volley"], "4": ["Raise Spectre", "Greater Volley", "Spell Echo", "Minion Damage"] } },
+      "groups": [
+        { "role": "minions", "label": "Zombie tanks 4L", "gems": ["Raise Zombie", "Summon Phantasm", "Feeding Frenzy", "Elemental Army"] },
+        { "role": "minions", "label": "Golem + Animate Guardian 3L", "gems": ["Summon Stone Golem", "Minion Life", "Animate Guardian"] },
+        { "role": "utility", "label": "Trigger (unsocket while copying Frostbearers)", "gems": ["Bone Offering", "Desecrate"] },
+        { "role": "utility", "label": "Guard", "gems": ["Steelskin", "Automation"] },
+        { "role": "movement", "label": "Mobility", "gems": ["Shield Charge", "Faster Attacks"] },
+        { "role": "movement", "label": "Movement", "gems": ["Flame Dash"] },
+        { "role": "auras", "label": "Auras", "gems": ["Purity of Elements", "Summon Skitterbots + Bonechill"] },
+        { "role": "utility", "label": "Curse / utility", "gems": ["Frostbite", "Convocation"] }
+      ],
+      "spectres": "Forged Frostbearers (raise one, then Desecrate with Offerings and Spell Echo off to copy it to your cap). Keep a Frostbearer as your most recent raise.",
+      "notes": ["Do Ziz's 8-12 point respec around L82-84.", "Mortar overlap: Greater Volley is why it shotguns.", "3L Bitterdream setup is Raise Spectre + Spell Echo + Greater Volley; 4L Reverberation Rod adds Minion Damage."],
+      "pob": "Ziz starter, skill sets 'Early Rare 6 link {1}', 'Early Bitterdream {0}', 'Early Reverberation Rod {3}' (3.29 data)"
+    }
+  ]
+}
